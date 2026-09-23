@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import shlex
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import time
 from datetime import timedelta
+from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
@@ -19,12 +21,22 @@ from . import ups_recovery
 
 
 SELECTION_TIMEOUT_SECONDS = 300
+TERMINAL_FOCUS_FALLBACK_SECONDS = 5.0
+TERMINAL_FOCUS_READY_DELAY_SECONDS = 0.15
+TERMINAL_CLOSE_GRACE_SECONDS = 2.0
+TERMINAL_CLOSE_POLL_SECONDS = 0.05
 SELECTIONS_DIRECTORY_NAME = "selections"
 WORK_PREFIX = "w/"
 
 
 class HookInputError(ValueError):
     """Raised when a requested selection omits a required Hook identifier."""
+
+
+class PickerWaitStatus(Enum):
+    """Non-result outcomes while waiting for the external picker."""
+
+    TERMINAL_CLOSED = "terminal_closed"
 
 
 def _required_string(payload: Mapping[str, Any], field: str) -> str:
@@ -111,6 +123,9 @@ def launch_terminal_picker(request_path: Path) -> None:
     project_root = shlex.quote(str(state_store.PROJECT_ROOT))
     request = shlex.quote(str(request_path))
     selections_directory = shlex.quote(str(request_path.parent))
+    shell_process_id_path = shlex.quote(
+        str(work_item_picker.terminal_shell_process_id_path_for(request_path))
+    )
     venv_python = state_store.PROJECT_ROOT / ".venv" / "bin" / "python"
     direct_picker_command = (
         f"{shlex.quote(str(venv_python))} -m src.harness.work_item_picker --request {request}"
@@ -119,6 +134,8 @@ def launch_terminal_picker(request_path: Path) -> None:
         f"uv run --quiet python -m src.harness.work_item_picker --request {request}"
     )
     shell_program = f"""\
+printf '\\033[2J\\033[H[Harness] WorkItem 선택기를 준비하는 중…\\n'
+printf '%s\\n' "$$" > {shell_process_id_path} 2>/dev/null
 show_permission_guidance() {{
   printf '\\n[Harness] WorkItem 선택 창을 열지 못했습니다.\\n\\n'
   printf '원인: Terminal이 프로젝트가 있는 Desktop 폴더에 접근할 수 없습니다.\\n\\n'
@@ -141,7 +158,6 @@ if ! test -r {request} || ! test -w {selections_directory}; then
   exit 1
 fi
 
-printf '[Harness] WorkItem 선택기를 준비하는 중…\\n'
 if test -x {shlex.quote(str(venv_python))}; then
   {direct_picker_command}
 else
@@ -164,7 +180,7 @@ exit "$picker_status"
         launcher_path.chmod(0o700)
         existing_process_ids = _terminal_process_ids()
         subprocess.run(
-            ["open", "-n", "-a", "Terminal", str(launcher_path)],
+            ["open", "-g", "-n", "-a", "Terminal", str(launcher_path)],
             check=True,
         )
     except (OSError, subprocess.CalledProcessError) as error:
@@ -237,20 +253,103 @@ def validate_selection_result(
 
 def wait_for_selection_result(
     request_path: Path, *, timeout_seconds: int = SELECTION_TIMEOUT_SECONDS,
-) -> dict[str, Any] | None:
-    """Poll the paired result file only until the selection timeout expires."""
+) -> dict[str, Any] | PickerWaitStatus | None:
+    """Wait for a result, noticing when the picker Terminal or shell exits."""
 
     result_path = work_item_picker.result_path_for(request_path)
+    ready_path = work_item_picker.terminal_ready_path_for(request_path)
+    process_id_path = work_item_picker.terminal_process_id_path_for(request_path)
+    shell_process_id_path = work_item_picker.terminal_shell_process_id_path_for(
+        request_path
+    )
+    started = time.monotonic()
     deadline = time.monotonic() + timeout_seconds
+    focused = False
+    ready_since: float | None = None
     while time.monotonic() < deadline:
         if result_path.exists():
             return work_item_picker.read_json_object(result_path)
+        terminal_pid = _read_process_id(process_id_path)
+        shell_pid = _read_process_id(shell_process_id_path)
+        if (
+            terminal_pid is not None and terminal_pid not in _terminal_process_ids()
+        ) or (shell_pid is not None and not _process_is_alive(shell_pid)):
+            # The picker can publish its result just before its shell exits.
+            if result_path.exists():
+                return work_item_picker.read_json_object(result_path)
+            return PickerWaitStatus.TERMINAL_CLOSED
+        now = time.monotonic()
+        if ready_since is None and ready_path.exists():
+            ready_since = now
+        if not focused and (
+            (ready_since is not None and now - ready_since >= TERMINAL_FOCUS_READY_DELAY_SECONDS)
+            or now - started >= TERMINAL_FOCUS_FALLBACK_SECONDS
+        ):
+            if terminal_pid is not None and terminal_pid in _terminal_process_ids():
+                focused = _request_terminal_activation(terminal_pid)
         time.sleep(0.1)
     return None
 
 
+def _read_process_id(path: Path) -> int | None:
+    """Read a request-scoped PID marker when it has been published."""
+
+    try:
+        process_id = int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return process_id if process_id > 0 else None
+
+
+def _process_is_alive(process_id: int) -> bool:
+    """Report whether a picker shell still has a live process ID."""
+
+    try:
+        os.kill(process_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _request_terminal_activation(process_id: int) -> bool:
+    """Bring the dedicated Terminal instance forward after fzf starts."""
+
+    if sys.platform != "darwin":
+        return False
+    try:
+        _appkit = ctypes.CDLL("/System/Library/Frameworks/AppKit.framework/AppKit")
+        objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+        pointer = ctypes.c_void_p
+        objc.objc_getClass.restype = pointer
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = pointer
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        send_message = objc.objc_msgSend
+        send_message.restype = pointer
+        send_message.argtypes = [pointer, pointer, ctypes.c_int32]
+        running_application = objc.objc_getClass(b"NSRunningApplication")
+        lookup = objc.sel_registerName(b"runningApplicationWithProcessIdentifier:")
+        app = send_message(running_application, lookup, ctypes.c_int32(process_id))
+        if not app:
+            return False
+        send_message.restype = ctypes.c_bool
+        send_message.argtypes = [pointer, pointer, ctypes.c_ulong]
+        activate = objc.sel_registerName(b"activateWithOptions:")
+        return bool(send_message(app, activate, ctypes.c_ulong(2)))
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
+
+
 def close_terminal_picker(request_path: Path) -> None:
-    """Best-effort terminate of this request's dedicated Terminal instance."""
+    """Gracefully quit this request's dedicated Terminal instance.
+
+    ``SIGTERM`` stops the app process without giving Terminal.app its normal
+    quit path, which can leave the picker window in macOS's restore list. Ask
+    the specific process to terminate through AppKit first, then retain
+    ``SIGTERM`` only as a bounded emergency fallback.
+    """
 
     process_id_path = work_item_picker.terminal_process_id_path_for(request_path)
     try:
@@ -261,12 +360,59 @@ def close_terminal_picker(request_path: Path) -> None:
         return
 
     # The result is written before the picker shell exits. Let it end before
-    # terminating its isolated Terminal.app process.
+    # asking its isolated Terminal.app process to quit normally.
     time.sleep(0.2)
+    _request_graceful_terminal_quit(process_id)
+    deadline = time.monotonic() + TERMINAL_CLOSE_GRACE_SECONDS
+    while time.monotonic() < deadline:
+        if process_id not in _terminal_process_ids():
+            return
+        time.sleep(TERMINAL_CLOSE_POLL_SECONDS)
+
+    # A hung or unavailable AppKit request must not leave the hook blocked.
+    if process_id in _terminal_process_ids():
+        try:
+            os.kill(process_id, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def _request_graceful_terminal_quit(process_id: int) -> bool:
+    """Ask AppKit to terminate exactly one Terminal.app process by PID.
+
+    ``NSRunningApplication.terminate`` is the AppKit equivalent of a normal
+    app quit. Calling it through the Objective-C runtime keeps the request
+    scoped to the recorded PID and avoids scripting the user's other Terminal
+    windows.
+    """
+
+    if sys.platform != "darwin":
+        return False
     try:
-        os.kill(process_id, signal.SIGTERM)
-    except OSError:
-        pass
+        _appkit = ctypes.CDLL("/System/Library/Frameworks/AppKit.framework/AppKit")
+        objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+        pointer = ctypes.c_void_p
+        objc.objc_getClass.restype = pointer
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = pointer
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        send_message = objc.objc_msgSend
+        send_message.restype = pointer
+        send_message.argtypes = [pointer, pointer, ctypes.c_int32]
+        running_application = objc.objc_getClass(b"NSRunningApplication")
+        lookup = objc.sel_registerName(
+            b"runningApplicationWithProcessIdentifier:"
+        )
+        app = send_message(running_application, lookup, ctypes.c_int32(process_id))
+        if not app:
+            return False
+
+        send_message.restype = ctypes.c_bool
+        send_message.argtypes = [pointer, pointer]
+        terminate = objc.sel_registerName(b"terminate")
+        return bool(send_message(app, terminate))
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
 
 
 def cleanup_selection_files(request_path: Path) -> None:
@@ -276,7 +422,9 @@ def cleanup_selection_files(request_path: Path) -> None:
         request_path,
         work_item_picker.result_path_for(request_path),
         work_item_picker.terminal_tty_path_for(request_path),
+        work_item_picker.terminal_ready_path_for(request_path),
         work_item_picker.terminal_process_id_path_for(request_path),
+        work_item_picker.terminal_shell_process_id_path_for(request_path),
         work_item_picker.terminal_launcher_path_for(request_path),
     ):
         try:
@@ -358,12 +506,20 @@ def dispatch_user_prompt_submit(
                     request=request_text,
                 )
             )
+        if result is PickerWaitStatus.TERMINAL_CLOSED:
+            return _hook_output(
+                _selection_packet(
+                    "terminal_closed",
+                    message="선택 창이 닫혀 대기를 끝냈습니다. 다시 선택하려면 같은 w/ 요청을 보내세요.",
+                    recovery=recovery.as_packet() if recovery else None,
+                    request=request_text,
+                )
+            )
         packet = validate_selection_result(
             request_path, result, request_text=request_text
         )
         if recovery is not None:
             packet["recovery"] = recovery.as_packet()
-        close_terminal_picker(request_path)
         return _hook_output(packet)
     except Exception as error:
         return _hook_output(
@@ -375,7 +531,10 @@ def dispatch_user_prompt_submit(
             )
         )
     finally:
-        cleanup_selection_files(request_path)
+        try:
+            close_terminal_picker(request_path)
+        finally:
+            cleanup_selection_files(request_path)
 
 
 def main() -> int:

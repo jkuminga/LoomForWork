@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -79,6 +80,15 @@ def terminal_tty_path_for(request_path: Path) -> Path:
     return request_path.with_name(request_path.name.removesuffix(suffix) + ".tty")
 
 
+def terminal_ready_path_for(request_path: Path) -> Path:
+    """Return the marker fzf writes when its interactive screen starts."""
+
+    suffix = ".request.json"
+    if not request_path.name.endswith(suffix):
+        raise SelectionFileError("request filename must end with .request.json")
+    return request_path.with_name(request_path.name.removesuffix(suffix) + ".ready")
+
+
 def terminal_process_id_path_for(request_path: Path) -> Path:
     """Return the transient dedicated-Terminal process ID file for a request."""
 
@@ -86,6 +96,15 @@ def terminal_process_id_path_for(request_path: Path) -> Path:
     if not request_path.name.endswith(suffix):
         raise SelectionFileError("request filename must end with .request.json")
     return request_path.with_name(request_path.name.removesuffix(suffix) + ".terminal.pid")
+
+
+def terminal_shell_process_id_path_for(request_path: Path) -> Path:
+    """Return the picker command shell PID file paired with a request."""
+
+    suffix = ".request.json"
+    if not request_path.name.endswith(suffix):
+        raise SelectionFileError("request filename must end with .request.json")
+    return request_path.with_name(request_path.name.removesuffix(suffix) + ".shell.pid")
 
 
 def terminal_launcher_path_for(request_path: Path) -> Path:
@@ -164,32 +183,37 @@ def read_and_validate_request(path: Path) -> dict[str, Any]:
     return request
 
 
-def run_fzf(lines: Sequence[str]) -> str | None:
+def run_fzf(lines: Sequence[str], *, ready_path: Path | None = None) -> str | None:
     """Let the user select one tab-delimited WorkItem line with fzf."""
 
+    command = [
+        "fzf",
+        "--delimiter=\t",
+        "--with-nth=2",
+        "--nth=2,6,7",
+        "--prompt=검색> ",
+        "--layout=reverse",
+        "--border=rounded",
+        "--border-label= Harness · WorkItem 선택 ",
+        "--border-label-pos=3",
+        f"--header={FZF_HEADER}",
+        "--header-first",
+        "--header-border=bottom",
+        f"--footer={FZF_FOOTER}",
+        "--footer-border=top",
+        "--info=inline-right",
+        "--pointer=▶",
+        f"--preview={FZF_PREVIEW}",
+        "--preview-window=down:50%,border-top,wrap",
+        "--preview-label= 선택한 WorkItem 상세 ",
+    ]
+    if ready_path is not None:
+        command.append(
+            f"--bind=start:execute-silent(: > {shlex.quote(str(ready_path))})"
+        )
     try:
         completed = subprocess.run(
-            [
-                "fzf",
-                "--delimiter=\t",
-                "--with-nth=2",
-                "--nth=2,6,7",
-                "--prompt=검색> ",
-                "--layout=reverse",
-                "--border=rounded",
-                "--border-label= Harness · WorkItem 선택 ",
-                "--border-label-pos=3",
-                f"--header={FZF_HEADER}",
-                "--header-first",
-                "--header-border=bottom",
-                f"--footer={FZF_FOOTER}",
-                "--footer-border=top",
-                "--info=inline-right",
-                "--pointer=▶",
-                f"--preview={FZF_PREVIEW}",
-                "--preview-window=down:50%,border-top,wrap",
-                "--preview-label= 선택한 WorkItem 상세 ",
-            ],
+            command,
             input="\n".join(lines) + ("\n" if lines else ""),
             text=True,
             stdout=subprocess.PIPE,
@@ -257,7 +281,7 @@ def run_picker(request_path: Path) -> None:
 
     request = read_and_validate_request(request_path)
     lines = [format_fzf_line(item) for item in request["work_items"]]
-    selected_line = run_fzf(lines)
+    selected_line = run_fzf(lines, ready_path=terminal_ready_path_for(request_path))
     if utc_now() >= parse_timestamp(request["expires_at"], "expires_at"):
         return
     if selected_line is None:

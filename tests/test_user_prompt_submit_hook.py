@@ -358,6 +358,20 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         self.assertIn("{8}", preview)
         self.assertIn("--preview-window=down:50%,border-top,wrap", command)
 
+    def test_picker_marks_ready_from_the_fzf_start_event(self) -> None:
+        ready_path = self.root / "picker ready.marker"
+        completed = work_item_picker.subprocess.CompletedProcess(
+            args=["fzf"], returncode=130, stdout=""
+        )
+        with patch.object(work_item_picker.subprocess, "run", return_value=completed) as run:
+            work_item_picker.run_fzf(["WI-1\thigh\t선택\t고른다"], ready_path=ready_path)
+
+        command = run.call_args.args[0]
+        self.assertIn(
+            f"--bind=start:execute-silent(: > '{ready_path}')",
+            command,
+        )
+
     def test_picker_formats_visible_columns_with_fixed_separators(self) -> None:
         line = work_item_picker.format_fzf_line(
             {
@@ -396,6 +410,8 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         self.assertIn("if ! cd", command)
         self.assertIn("test -r", command)
         self.assertIn("WorkItem 선택기를 준비하는 중", command)
+        self.assertIn(".shell.pid", command)
+        self.assertIn('"$$"', command)
         self.assertIn(".venv/bin/python", command)
         self.assertIn("uv run --quiet", command)
 
@@ -414,7 +430,7 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         launcher = work_item_picker.terminal_launcher_path_for(request_path)
         self.assertEqual(
             run.call_args.args[0],
-            ["open", "-n", "-a", "Terminal", str(launcher)],
+            ["open", "-g", "-n", "-a", "Terminal", str(launcher)],
         )
         self.assertEqual(
             work_item_picker.terminal_process_id_path_for(request_path).read_text(
@@ -423,7 +439,133 @@ class UserPromptSubmitHookTests(unittest.TestCase):
             "200\n",
         )
 
-    def test_hook_terminates_only_the_recorded_picker_terminal_instance(self) -> None:
+    def test_hook_focuses_only_after_fzf_marks_the_picker_ready(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        request_path.parent.mkdir()
+        work_item_picker.terminal_process_id_path_for(request_path).write_text(
+            "4321\n", encoding="utf-8"
+        )
+        ready_path = work_item_picker.terminal_ready_path_for(request_path)
+        result_path = work_item_picker.result_path_for(request_path)
+        marker_checks = 0
+
+        def advance_picker(_seconds: float) -> None:
+            nonlocal marker_checks
+            marker_checks += 1
+            if marker_checks == 1:
+                ready_path.touch()
+            elif marker_checks == 2:
+                work_item_picker.atomic_write_json(result_path, {"status": "cancelled"})
+
+        with (
+            patch.object(user_prompt_submit.time, "sleep", side_effect=advance_picker),
+            patch.object(user_prompt_submit, "TERMINAL_FOCUS_READY_DELAY_SECONDS", 0),
+            patch.object(user_prompt_submit, "_terminal_process_ids", return_value={4321}),
+            patch.object(user_prompt_submit, "_request_terminal_activation", return_value=True) as activate,
+        ):
+            result = user_prompt_submit.wait_for_selection_result(
+                request_path, timeout_seconds=10
+            )
+
+        self.assertEqual(result, {"status": "cancelled"})
+        self.assertEqual(marker_checks, 2)
+        activate.assert_called_once_with(4321)
+
+    def test_hook_exposes_terminal_errors_when_fzf_never_starts(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        request_path.parent.mkdir()
+        work_item_picker.terminal_process_id_path_for(request_path).write_text(
+            "4321\n", encoding="utf-8"
+        )
+        result_path = work_item_picker.result_path_for(request_path)
+
+        def finish_after_focus(_seconds: float) -> None:
+            work_item_picker.atomic_write_json(result_path, {"status": "cancelled"})
+
+        with (
+            patch.object(user_prompt_submit.time, "monotonic", side_effect=[0, 0, 1, 5.2, 5.3]),
+            patch.object(user_prompt_submit.time, "sleep", side_effect=finish_after_focus),
+            patch.object(user_prompt_submit, "_terminal_process_ids", return_value={4321}),
+            patch.object(user_prompt_submit, "_request_terminal_activation", return_value=True) as activate,
+        ):
+            result = user_prompt_submit.wait_for_selection_result(
+                request_path, timeout_seconds=10
+            )
+
+        self.assertEqual(result, {"status": "cancelled"})
+        activate.assert_called_once_with(4321)
+
+    def test_wait_ends_when_picker_shell_dies_without_a_result(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        request_path.parent.mkdir()
+        work_item_picker.terminal_shell_process_id_path_for(request_path).write_text(
+            "4321\n", encoding="utf-8"
+        )
+
+        with patch.object(user_prompt_submit.os, "kill", side_effect=ProcessLookupError):
+            result = user_prompt_submit.wait_for_selection_result(
+                request_path, timeout_seconds=0.5
+            )
+
+        self.assertIs(result, user_prompt_submit.PickerWaitStatus.TERMINAL_CLOSED)
+
+    def test_existing_selection_result_wins_over_shell_exit(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        request_path.parent.mkdir()
+        work_item_picker.terminal_shell_process_id_path_for(request_path).write_text(
+            "4321\n", encoding="utf-8"
+        )
+        work_item_picker.atomic_write_json(
+            work_item_picker.result_path_for(request_path), {"status": "selected"}
+        )
+
+        with patch.object(user_prompt_submit.os, "kill", side_effect=ProcessLookupError):
+            result = user_prompt_submit.wait_for_selection_result(
+                request_path, timeout_seconds=0.5
+            )
+
+        self.assertEqual(result, {"status": "selected"})
+
+    def test_wait_ends_when_dedicated_terminal_exits_without_shell_marker(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        request_path.parent.mkdir()
+        work_item_picker.terminal_process_id_path_for(request_path).write_text(
+            "4321\n", encoding="utf-8"
+        )
+
+        with patch.object(user_prompt_submit, "_terminal_process_ids", return_value=set()):
+            result = user_prompt_submit.wait_for_selection_result(
+                request_path, timeout_seconds=0.5
+            )
+
+        self.assertIs(result, user_prompt_submit.PickerWaitStatus.TERMINAL_CLOSED)
+
+    def test_manual_picker_close_reports_recoverable_status_and_cleans_up(self) -> None:
+        self.create_ready_work_item()
+        with (
+            patch.object(user_prompt_submit, "launch_terminal_picker") as launch,
+            patch.object(
+                user_prompt_submit,
+                "wait_for_selection_result",
+                return_value=user_prompt_submit.PickerWaitStatus.TERMINAL_CLOSED,
+            ),
+            patch.object(user_prompt_submit, "close_terminal_picker") as close,
+        ):
+            output = user_prompt_submit.dispatch_user_prompt_submit(
+                self.event(), database_path=self.database_path
+            )
+
+        packet = json.loads(
+            output["hookSpecificOutput"]["additionalContext"].split("\n", 1)[1].rsplit("\n", 1)[0]
+        )
+        self.assertEqual(packet["selection_status"], "terminal_closed")
+        self.assertIn("다시 선택", packet["message"])
+        request_path = launch.call_args.args[0]
+        close.assert_called_once_with(request_path)
+        self.assertFalse(request_path.exists())
+        self.assertFalse(work_item_picker.terminal_shell_process_id_path_for(request_path).exists())
+
+    def test_hook_gracefully_quits_only_the_recorded_picker_terminal_instance(self) -> None:
         request_path = self.root / "selections" / "selection.request.json"
         process_id_path = work_item_picker.terminal_process_id_path_for(request_path)
         process_id_path.parent.mkdir()
@@ -431,14 +573,45 @@ class UserPromptSubmitHookTests(unittest.TestCase):
 
         with (
             patch.object(
-                user_prompt_submit, "_terminal_process_ids", return_value={4321}
+                user_prompt_submit,
+                "_terminal_process_ids",
+                side_effect=[{4321}, {}],
             ),
             patch.object(user_prompt_submit.time, "sleep") as sleep,
+            patch.object(
+                user_prompt_submit,
+                "_request_graceful_terminal_quit",
+            ) as graceful_quit,
             patch.object(user_prompt_submit.os, "kill") as kill,
         ):
             user_prompt_submit.close_terminal_picker(request_path)
 
         sleep.assert_called_once_with(0.2)
+        graceful_quit.assert_called_once_with(4321)
+        kill.assert_not_called()
+
+    def test_hook_uses_sigterm_only_when_graceful_terminal_quit_does_not_exit(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        process_id_path = work_item_picker.terminal_process_id_path_for(request_path)
+        process_id_path.parent.mkdir()
+        process_id_path.write_text("4321\n", encoding="utf-8")
+
+        with (
+            patch.object(
+                user_prompt_submit,
+                "_terminal_process_ids",
+                return_value={4321},
+            ),
+            patch.object(user_prompt_submit.time, "sleep"),
+            patch.object(
+                user_prompt_submit,
+                "_request_graceful_terminal_quit",
+            ) as graceful_quit,
+            patch.object(user_prompt_submit.os, "kill") as kill,
+        ):
+            user_prompt_submit.close_terminal_picker(request_path)
+
+        graceful_quit.assert_called_once_with(4321)
         kill.assert_called_once_with(4321, signal.SIGTERM)
 
 
