@@ -177,6 +177,11 @@ def _detail(work_item_id: str, database_path: Path) -> dict[str, object]:
 
     context = state_store.get_work_item_context(work_item_id, database_path=database_path)
     context["work_item"]["is_draft"] = bool(context["work_item"]["is_draft"])
+    evidence_counts = state_store.get_work_item_evidence_counts(
+        work_item_id, database_path=database_path
+    )
+    for criterion in context["acceptance_criteria"]:
+        criterion["evidence_count"] = evidence_counts.get(criterion["id"], 0)
     context["capabilities"] = state_store.get_work_item_management_capabilities(
         work_item_id, database_path=database_path
     )
@@ -238,6 +243,17 @@ def create_router() -> APIRouter:
     @router.get("/work-items/{work_item_id}")
     def get_item(work_item_id: str, request: Request) -> dict[str, object]:
         return _detail(work_item_id, _database_path(request))
+
+    @router.get("/work-items/{work_item_id}/acceptance-criteria/{criterion_id}/evidence")
+    def get_criterion_evidence(
+        work_item_id: str, criterion_id: str, request: Request
+    ) -> dict[str, object]:
+        evidence = state_store.get_work_item_criterion_evidence(
+            work_item_id,
+            criterion_id,
+            database_path=_database_path(request),
+        )
+        return {"criterion_id": criterion_id, "evidence": evidence}
 
     @router.patch("/work-items/{work_item_id}")
     def revise_item(

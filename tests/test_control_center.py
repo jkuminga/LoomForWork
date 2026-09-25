@@ -418,6 +418,111 @@ process.stdout.write(context.renderMarkdown("first line\\n\\n\\nsecond line"));
         self.assertIsNotNone(recent["started_at"])
         self.assertIsNotNone(recent["ended_at"])
 
+    def test_work_item_detail_exposes_evidence_counts_and_lazy_evidence_details(self) -> None:
+        work_item = state_store.create_ready_work_item(
+            title="AC Evidence 상세",
+            kind="verification",
+            goal="Acceptance Criterion별 Evidence를 확인한다.",
+            next_action="Evidence를 확인한다.",
+            acceptance_criteria=["테스트 결과가 통과한다.", "결과 요약이 기록된다."],
+            actor="test",
+            database_path=self.database_path,
+        )
+        criteria = state_store.get_work_item_context(
+            work_item["id"], database_path=self.database_path
+        )["acceptance_criteria"]
+        run = state_store.start_run(
+            work_item["id"], intent="Evidence 상세를 만든다.", recall_query="Evidence 상세",
+            actor="test", database_path=self.database_path,
+        )
+        artifact = state_store.create_artifact(
+            run["id"], kind="test_run", uri="command:test:20260923T093000Z",
+            verification_status="passed", summary="전체 테스트 186개 통과",
+            actor="test", database_path=self.database_path,
+        )
+        state_store.link_evidence(
+            criteria[0]["id"], artifact["id"], actor="test",
+            note="테스트 결과가 첫 번째 조건을 증명한다.",
+            database_path=self.database_path,
+        )
+        state_store.finish_run(
+            run["id"], run_status="succeeded", work_item_status="ready",
+            summary="Evidence 등록 완료", next_action="결과를 확인한다.",
+            actor="test", reason="검증 완료", database_path=self.database_path,
+        )
+
+        detail_response = self.client.get(f"/api/work-items/{work_item['id']}")
+        evidence_response = self.client.get(
+            f"/api/work-items/{work_item['id']}/acceptance-criteria/{criteria[0]['id']}/evidence"
+        )
+
+        self.assertEqual(detail_response.status_code, 200)
+        detail_criteria = detail_response.json()["acceptance_criteria"]
+        self.assertEqual(detail_criteria[0]["evidence_count"], 1)
+        self.assertEqual(detail_criteria[1]["evidence_count"], 0)
+        self.assertEqual(evidence_response.status_code, 200)
+        evidence = evidence_response.json()["evidence"]
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]["kind"], "test_run")
+        self.assertEqual(evidence[0]["verification_status"], "passed")
+        self.assertEqual(evidence[0]["run_status"], "succeeded")
+        self.assertEqual(evidence[0]["summary"], "전체 테스트 186개 통과")
+        self.assertEqual(evidence[0]["note"], "테스트 결과가 첫 번째 조건을 증명한다.")
+        self.assertNotIn("uri", evidence[0])
+        self.assertNotIn("artifact_id", evidence[0])
+
+    def test_work_item_detail_evidence_rejects_a_criterion_from_another_work_item(self) -> None:
+        first = state_store.create_ready_work_item(
+            title="첫 번째 Evidence 대상", kind="verification", goal="첫 대상을 확인한다.",
+            next_action="첫 대상을 실행한다.", acceptance_criteria=["첫 조건"], actor="test",
+            database_path=self.database_path,
+        )
+        second = state_store.create_ready_work_item(
+            title="두 번째 Evidence 대상", kind="verification", goal="두 번째 대상을 확인한다.",
+            next_action="두 번째 대상을 실행한다.", acceptance_criteria=["두 번째 조건"], actor="test",
+            database_path=self.database_path,
+        )
+        criterion = state_store.get_work_item_context(
+            second["id"], database_path=self.database_path
+        )["acceptance_criteria"][0]
+
+        response = self.client.get(
+            f"/api/work-items/{first['id']}/acceptance-criteria/{criterion['id']}/evidence"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["error"]["code"], "not_found")
+
+    def test_work_item_detail_ui_renders_expandable_evidence_rows(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        styles = (root / "styles.css").read_text()
+
+        self.assertIn("data-criterion-toggle", app_js)
+        self.assertIn("evidence_count", app_js)
+        self.assertIn("Evidence 없음", app_js)
+        self.assertIn("/acceptance-criteria/${encodeURIComponent(criterionId)}/evidence", app_js)
+        self.assertIn("criterion-evidence-panel", styles)
+        self.assertIn("criterion-evidence-count", styles)
+        self.assertIn("evidence-card", styles)
+
+    def test_memo_header_is_the_expand_toggle(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        styles = (root / "styles.css").read_text()
+
+        self.assertIn('data-memo-toggle="${escapeHtml(memo.id)}"', app_js)
+        self.assertIn("handleMemoHeaderToggle", app_js)
+        self.assertIn("handleMemoHeaderKeydown", app_js)
+        self.assertIn('list?.addEventListener("click", handleMemoHeaderToggle);', app_js)
+        self.assertIn('list?.addEventListener("keydown", handleMemoHeaderKeydown);', app_js)
+        self.assertIn("memo-expand-indicator", app_js)
+        self.assertIn('<svg viewBox="0 0 16 16"', app_js)
+        self.assertNotIn('class="memo-expand-button"', app_js)
+        self.assertIn(".memo-card-header:focus-visible", styles)
+        self.assertIn(".memo-expand-indicator svg", styles)
+        self.assertIn(".memo-card.is-expanded .memo-expand-indicator svg", styles)
+
     def test_runs_list_filters_searches_and_paginates_joined_work_items(self) -> None:
         first = state_store.create_work_item(
             title="첫 번째 실행 대상", kind="verification", goal="Run 목록을 검증한다.",

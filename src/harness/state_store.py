@@ -1957,6 +1957,94 @@ def get_criterion_evidence(
         database.close()
 
 
+def get_work_item_evidence_counts(
+    work_item_id: str,
+    *,
+    database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> dict[str, int]:
+    """Return the number of Evidence links for each Acceptance Criterion.
+
+    This is a compact web-console projection: Evidence is the link between an
+    Acceptance Criterion and an Artifact, not a separate result entity. The
+    detailed Artifact and Run fields are intentionally left to the lazy detail
+    query so the general WorkItem context stays small.
+    """
+
+    database = open_database(database_path)
+    try:
+        _require_row(
+            database, "SELECT id FROM work_items WHERE id = ?", (work_item_id,), "WorkItem"
+        )
+        return {
+            row["criterion_id"]: row["evidence_count"]
+            for row in database.execute(
+                """
+                SELECT criterion.id AS criterion_id,
+                       COUNT(evidence.artifact_id) AS evidence_count
+                FROM acceptance_criteria AS criterion
+                LEFT JOIN criterion_evidence AS evidence
+                  ON evidence.criterion_id = criterion.id
+                WHERE criterion.work_item_id = ?
+                GROUP BY criterion.id
+                """,
+                (work_item_id,),
+            )
+        }
+    finally:
+        database.close()
+
+
+def get_work_item_criterion_evidence(
+    work_item_id: str,
+    criterion_id: str,
+    *,
+    database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> list[dict[str, Any]]:
+    """Return web-console Evidence details for one WorkItem criterion.
+
+    The response joins the Evidence link, Artifact, and source Run so the UI
+    can explain what proves the criterion and when it was produced. URI and
+    internal Artifact IDs are deliberately omitted from this projection.
+    """
+
+    database = open_database(database_path)
+    try:
+        _require_row(
+            database,
+            """
+            SELECT id FROM acceptance_criteria
+            WHERE id = ? AND work_item_id = ?
+            """,
+            (criterion_id, work_item_id),
+            "Acceptance Criterion",
+        )
+        return [
+            dict(row)
+            for row in database.execute(
+                """
+                SELECT evidence.criterion_id,
+                       evidence.note,
+                       evidence.created_at AS linked_at,
+                       artifact.run_id,
+                       artifact.kind,
+                       artifact.verification_status,
+                       artifact.summary,
+                       run.status AS run_status,
+                       run.started_at AS run_started_at,
+                       run.ended_at AS run_ended_at
+                FROM criterion_evidence AS evidence
+                JOIN artifacts AS artifact ON artifact.id = evidence.artifact_id
+                JOIN runs AS run ON run.id = artifact.run_id
+                WHERE evidence.criterion_id = ?
+                ORDER BY evidence.created_at, artifact.id
+                """,
+                (criterion_id,),
+            )
+        ]
+    finally:
+        database.close()
+
+
 def pass_criterion(
     criterion_id: str,
     *,

@@ -38,6 +38,10 @@ const state = {
   memoStatusFilter: "",
   memoKindFilter: "",
   expandedMemoIds: new Set(),
+  expandedCriterionIds: new Set(),
+  criterionEvidence: new Map(),
+  criterionEvidenceLoading: new Set(),
+  criterionEvidenceErrors: new Map(),
   editingMemoId: null,
   detailTab: "overview",
   currentView: "work-items",
@@ -399,7 +403,7 @@ function renderMemoCards() {
     const expanded = state.expandedMemoIds.has(memo.id);
     return `
     <article class="memo-card ${memo.is_pinned ? "is-pinned" : ""} ${memo.status === "closed" ? "is-closed" : ""} ${expanded ? "is-expanded" : ""}" data-memo-id="${escapeHtml(memo.id)}" data-pinned="${memo.is_pinned ? "true" : "false"}" draggable="${filtered ? "false" : "true"}">
-      <header class="memo-card-header">
+      <header class="memo-card-header" data-memo-toggle="${escapeHtml(memo.id)}" role="button" tabindex="0" aria-expanded="${expanded}" aria-controls="memo-content-${escapeHtml(memo.id)}" aria-label="메모 ${expanded ? "접기" : "열기"}">
         <div class="memo-card-header-main">
           <span class="memo-drag-handle" aria-hidden="true" title="드래그하여 순서 변경">⋮⋮</span>
           <div class="memo-card-title">
@@ -410,13 +414,13 @@ function renderMemoCards() {
           </div>
         </div>
         <div class="memo-card-actions" aria-label="메모 작업">
-          <button type="button" class="memo-expand-button" data-memo-action="toggle" aria-expanded="${expanded}" aria-label="메모 ${expanded ? "접기" : "열기"}" title="메모 ${expanded ? "접기" : "열기"}"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg><span>${expanded ? "접기" : "열기"}</span></button>
+          <span class="memo-expand-indicator" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
           <button type="button" data-memo-action="pin" aria-label="${memo.is_pinned ? "고정 해제" : "상단 고정"}" title="${memo.is_pinned ? "고정 해제" : "상단 고정"}">${memo.is_pinned ? "★" : "☆"}</button>
           <button type="button" data-memo-action="edit" aria-label="메모 수정" title="메모 수정">✎</button>
           <button type="button" data-memo-action="delete" aria-label="메모 삭제" title="메모 삭제">×</button>
         </div>
       </header>
-      <section class="memo-content ${expanded ? "" : "hidden"}" aria-label="메모 본문">${renderMarkdown(memo.content)}</section>
+      <section class="memo-content ${expanded ? "" : "hidden"}" id="memo-content-${escapeHtml(memo.id)}" aria-label="메모 본문">${renderMarkdown(memo.content)}</section>
       <footer class="memo-card-footer ${expanded ? "" : "hidden"}">
         <div class="memo-card-author">
           <span class="memo-author-avatar" aria-hidden="true">${escapeHtml(authorInitial)}</span>
@@ -438,6 +442,33 @@ async function refreshSelectedDetail() {
   if (item) await selectItem(item.id);
 }
 
+function toggleMemoCard(card, memoId) {
+  const expanded = !state.expandedMemoIds.has(memoId);
+  if (expanded) state.expandedMemoIds.add(memoId);
+  else state.expandedMemoIds.delete(memoId);
+  card.classList.toggle("is-expanded", expanded);
+  card.querySelector("[data-memo-toggle]")?.setAttribute("aria-expanded", String(expanded));
+  card.querySelector("[data-memo-toggle]")?.setAttribute("aria-label", `메모 ${expanded ? "접기" : "열기"}`);
+  card.querySelector(".memo-content")?.classList.toggle("hidden", !expanded);
+  card.querySelector(".memo-card-footer")?.classList.toggle("hidden", !expanded);
+}
+
+function handleMemoHeaderToggle(event) {
+  const header = event.target.closest("[data-memo-toggle]");
+  if (!header || event.target.closest("[data-memo-action], .memo-drag-handle")) return;
+  const card = header.closest("[data-memo-id]");
+  if (card) toggleMemoCard(card, card.dataset.memoId);
+}
+
+function handleMemoHeaderKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const header = event.target.closest("[data-memo-toggle]");
+  if (!header || event.target.closest("[data-memo-action], .memo-drag-handle")) return;
+  event.preventDefault();
+  const card = header.closest("[data-memo-id]");
+  if (card) toggleMemoCard(card, card.dataset.memoId);
+}
+
 async function handleMemoAction(event) {
   const button = event.target.closest("[data-memo-action]");
   const card = event.target.closest("[data-memo-id]");
@@ -448,19 +479,6 @@ async function handleMemoAction(event) {
   if (!item || !memo) return;
   const action = button.dataset.memoAction;
   try {
-    if (action === "toggle") {
-      const expanded = !state.expandedMemoIds.has(memoId);
-      if (expanded) state.expandedMemoIds.add(memoId);
-      else state.expandedMemoIds.delete(memoId);
-      card.classList.toggle("is-expanded", expanded);
-      card.querySelector(".memo-content")?.classList.toggle("hidden", !expanded);
-      card.querySelector(".memo-card-footer")?.classList.toggle("hidden", !expanded);
-      button.setAttribute("aria-expanded", String(expanded));
-      button.setAttribute("aria-label", `메모 ${expanded ? "접기" : "열기"}`);
-      button.title = `메모 ${expanded ? "접기" : "열기"}`;
-      button.querySelector("span:last-child").textContent = expanded ? "접기" : "열기";
-      return;
-    }
     if (action === "edit") return openMemoModal(memoId);
     if (action === "copy") return copyMemoMarkdown(button, memo.content);
     if (action === "delete") {
@@ -526,6 +544,8 @@ function bindMemoInteractions() {
   });
   document.querySelector("#add-memo")?.addEventListener("click", () => openMemoModal());
   list?.addEventListener("click", handleMemoAction);
+  list?.addEventListener("click", handleMemoHeaderToggle);
+  list?.addEventListener("keydown", handleMemoHeaderKeydown);
   list?.addEventListener("dragstart", (event) => {
     const card = event.target.closest("[data-memo-id]");
     if (!card || state.memoStatusFilter || state.memoKindFilter) { event.preventDefault(); return; }
@@ -635,6 +655,151 @@ function emptySection(message) {
   return `<div class="subtle-empty">${escapeHtml(message)}</div>`;
 }
 
+function criterionStatusLabel(status) {
+  return {
+    passed: "Passed",
+    failed: "Failed",
+    pending: "Pending",
+    waived: "Waived",
+  }[status] || status;
+}
+
+function criterionMark(status) {
+  return {
+    passed: "✓",
+    failed: "×",
+    pending: "•",
+    waived: "—",
+  }[status] || "•";
+}
+
+function evidenceKindLabel(kind) {
+  return {
+    file: "File",
+    commit: "Commit",
+    test_run: "Test Run",
+    lint_run: "Lint Run",
+    build_run: "Build Run",
+    pull_request: "Pull Request",
+    deployment: "Deployment",
+    screenshot: "Screenshot",
+    report: "Report",
+    other: "Other",
+  }[kind] || kind;
+}
+
+function evidenceStatusLabel(status) {
+  return {
+    passed: "Passed",
+    failed: "Failed",
+    pending: "Pending",
+    not_applicable: "N/A",
+  }[status] || status;
+}
+
+function evidenceStatusClass(status) {
+  return ["passed", "failed", "pending", "not_applicable"].includes(status)
+    ? status : "unknown";
+}
+
+function evidenceDetailsHtml(criterion) {
+  const criterionId = criterion.id;
+  if (state.criterionEvidenceLoading.has(criterionId)) {
+    return '<div class="criterion-evidence-panel"><div class="criterion-evidence-loading"><span class="spinner"></span><span>Evidence를 불러오는 중입니다.</span></div></div>';
+  }
+  const error = state.criterionEvidenceErrors.get(criterionId);
+  if (error) {
+    return `<div class="criterion-evidence-panel"><div class="criterion-evidence-error"><span>${escapeHtml(error)}</span><button type="button" data-criterion-retry="${escapeHtml(criterionId)}">다시 시도</button></div></div>`;
+  }
+  const evidence = state.criterionEvidence.get(criterionId) || [];
+  if (!evidence.length) {
+    return `<div class="criterion-evidence-panel" id="criterion-evidence-${escapeHtml(criterionId)}"><div class="criterion-evidence-heading"><span>Evidence · 없음</span></div><div class="criterion-evidence-empty">연결된 Evidence가 없습니다.</div></div>`;
+  }
+  return `<div class="criterion-evidence-panel" id="criterion-evidence-${escapeHtml(criterionId)}">
+    <div class="criterion-evidence-heading"><span>Evidence · ${evidence.length}개</span></div>
+    <div class="criterion-evidence-list">${evidence.map((entry) => {
+      const status = evidenceStatusClass(entry.verification_status);
+      const runStatus = entry.run_status ? runStatusClass(entry.run_status) : "unknown";
+      const runMeta = [
+        entry.run_id,
+        entry.run_status ? runStatusLabel(entry.run_status) : null,
+        entry.run_started_at ? formatRunDate(entry.run_started_at) : null,
+      ].filter(Boolean).join(" · ");
+      return `<article class="evidence-card">
+        <div class="evidence-card-meta">
+          <span class="evidence-status evidence-status-${status}">${escapeHtml(evidenceStatusLabel(entry.verification_status))}</span>
+          <span class="evidence-kind">Artifact: ${escapeHtml(evidenceKindLabel(entry.kind))}</span>
+          ${runMeta ? `<span class="evidence-run evidence-run-${runStatus}">${escapeHtml(runMeta)}</span>` : ""}
+        </div>
+        <strong class="evidence-summary">${escapeHtml(entry.summary)}</strong>
+        ${entry.note ? `<p class="evidence-note">${escapeHtml(entry.note)}</p>` : ""}
+      </article>`;
+    }).join("")}</div>
+  </div>`;
+}
+
+function criteriaHtml(criteria) {
+  return criteria.length
+    ? `<ul class="criteria-list">${criteria.map((criterion) => {
+        const status = criterion.status || "pending";
+        const expanded = state.expandedCriterionIds.has(criterion.id);
+        const evidenceCount = Number(criterion.evidence_count || 0);
+        return `<li class="criterion criterion-${escapeHtml(status)} ${expanded ? "is-expanded" : ""}" data-criterion-id="${escapeHtml(criterion.id)}">
+          <div class="criterion-header">
+            <div class="criterion-main">
+              <span class="criterion-mark" aria-label="${escapeHtml(criterionStatusLabel(status))}">${escapeHtml(criterionMark(status))}</span>
+              <span class="criterion-description">${escapeHtml(criterion.description)}</span>
+            </div>
+            <div class="criterion-controls">
+              <span class="criterion-evidence-count">${evidenceCount ? `Evidence ${evidenceCount}개` : "Evidence 없음"}</span>
+              <button type="button" class="criterion-toggle" data-criterion-toggle="${escapeHtml(criterion.id)}" aria-expanded="${expanded}" aria-controls="criterion-evidence-${escapeHtml(criterion.id)}" aria-label="Evidence ${expanded ? "접기" : "펼치기"}" title="Evidence ${expanded ? "접기" : "펼치기"}">
+                <span aria-hidden="true">⌃</span>
+              </button>
+            </div>
+          </div>
+          ${expanded ? evidenceDetailsHtml(criterion) : ""}
+        </li>`;
+      }).join("")}</ul>`
+    : emptySection(state.selectedContext?.work_item?.is_draft ? "구체화 전이라 완료 조건이 아직 없습니다." : "등록된 완료 조건이 없습니다.");
+}
+
+async function loadCriterionEvidence(criterionId) {
+  const item = state.selectedContext?.work_item;
+  if (!item) return;
+  state.criterionEvidenceLoading.add(criterionId);
+  state.criterionEvidenceErrors.delete(criterionId);
+  renderDetail(state.selectedContext);
+  try {
+    const payload = await api(`/api/work-items/${encodeURIComponent(item.id)}/acceptance-criteria/${encodeURIComponent(criterionId)}/evidence`);
+    if (state.selectedId !== item.id) return;
+    state.criterionEvidence.set(criterionId, payload.evidence || []);
+  } catch (error) {
+    if (state.selectedId === item.id) state.criterionEvidenceErrors.set(criterionId, error.message);
+  } finally {
+    state.criterionEvidenceLoading.delete(criterionId);
+    if (state.selectedId === item.id && state.expandedCriterionIds.has(criterionId)) renderDetail(state.selectedContext);
+  }
+}
+
+async function toggleCriterionEvidence(criterionId) {
+  if (state.expandedCriterionIds.has(criterionId)) {
+    state.expandedCriterionIds.delete(criterionId);
+    renderDetail(state.selectedContext);
+    return;
+  }
+  state.expandedCriterionIds.add(criterionId);
+  await loadCriterionEvidence(criterionId);
+}
+
+function bindCriterionInteractions() {
+  document.querySelectorAll("[data-criterion-toggle]").forEach((button) => {
+    button.addEventListener("click", () => toggleCriterionEvidence(button.dataset.criterionToggle));
+  });
+  document.querySelectorAll("[data-criterion-retry]").forEach((button) => {
+    button.addEventListener("click", () => loadCriterionEvidence(button.dataset.criterionRetry));
+  });
+}
+
 function renderDetail(context) {
   state.selectedContext = context;
   const item = context.work_item;
@@ -642,13 +807,6 @@ function renderDetail(context) {
   const virtualStatus = statusOf(item);
   const criteria = context.acceptance_criteria || [];
   const runs = [context.running_run, ...(context.recent_runs || [])].filter(Boolean);
-  const criteriaHtml = criteria.length
-    ? `<ul class="criteria-list">${criteria.map((criterion) => `
-        <li class="criterion ${escapeHtml(criterion.status)}">
-          <span class="criterion-mark">✓</span>
-          <span>${escapeHtml(criterion.description)}</span>
-        </li>`).join("")}</ul>`
-    : emptySection(item.is_draft ? "구체화 전이라 완료 조건이 아직 없습니다." : "등록된 완료 조건이 없습니다.");
   const runsHtml = runs.length
     ? `<ul class="runs-list">${runs.map((run) => {
         const status = runStatusClass(run.status);
@@ -715,7 +873,7 @@ function renderDetail(context) {
         <section class="detail-section"><h3>Goal</h3><p class="detail-block">${escapeHtml(item.goal)}</p></section>
         ${item.description ? `<section class="detail-section"><h3>Description</h3><p class="detail-block">${escapeHtml(item.description)}</p></section>` : ""}
         <section class="detail-section"><h3>Next Action</h3>${item.next_action ? `<p class="detail-block next-action">${escapeHtml(item.next_action)}</p>` : emptySection("다음 행동은 구체화 과정에서 정해집니다.")}</section>
-        <section class="detail-section"><h3>Acceptance Criteria</h3>${criteriaHtml}</section>
+        <section class="detail-section acceptance-criteria-section"><div class="acceptance-criteria-heading"><h3>Acceptance Criteria</h3><span class="acceptance-criteria-count">${criteria.length}개</span><span class="acceptance-criteria-hint">클릭하여 검증 Evidence 확인</span></div>${criteriaHtml(criteria)}</section>
         <section class="detail-section runs-section"><div class="runs-section-heading"><h3>Recent Runs</h3>${runs.length ? `<span class="runs-count">총 ${runs.length}건</span>` : ""}</div>${runsHtml}</section>
       </div>
       <div id="memos-panel" class="detail-panel ${state.detailTab === "memos" ? "" : "hidden"}">
@@ -726,6 +884,7 @@ function renderDetail(context) {
   elements.emptyDetail.classList.add("hidden");
   elements.detail.classList.remove("hidden");
   bindDetailActions();
+  bindCriterionInteractions();
   renderMemoCards();
   bindMemoInteractions();
 }
@@ -772,7 +931,13 @@ async function changeSelectedStatus(target) {
 }
 
 async function selectItem(workItemId) {
-  if (state.selectedId !== workItemId) state.expandedMemoIds.clear();
+  if (state.selectedId !== workItemId) {
+    state.expandedMemoIds.clear();
+    state.expandedCriterionIds.clear();
+    state.criterionEvidence.clear();
+    state.criterionEvidenceLoading.clear();
+    state.criterionEvidenceErrors.clear();
+  }
   state.selectedId = workItemId;
   renderItems();
   elements.detail.innerHTML = `<div class="loading-state"><span class="spinner"></span><p>상세 정보를 불러오는 중입니다.</p></div>`;
