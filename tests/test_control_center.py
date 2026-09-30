@@ -506,6 +506,18 @@ process.stdout.write(context.renderMarkdown("first line\\n\\n\\nsecond line"));
         self.assertIn("criterion-evidence-count", styles)
         self.assertIn("evidence-card", styles)
 
+    def test_work_item_layout_gives_detail_panel_sixty_percent_of_content_width(self) -> None:
+        styles = (Path(__file__).parents[1] / "src/harness/control_center/static/styles.css").read_text()
+
+        self.assertIn(
+            "grid-template-columns: 220px minmax(0, 2fr) minmax(0, 3fr);",
+            styles,
+        )
+        self.assertIn(
+            "grid-template-columns: 190px minmax(0, 2fr) minmax(0, 3fr);",
+            styles,
+        )
+
     def test_memo_header_is_the_expand_toggle(self) -> None:
         root = Path(__file__).parents[1] / "src/harness/control_center/static"
         app_js = (root / "app.js").read_text()

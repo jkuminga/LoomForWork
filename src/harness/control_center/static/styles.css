@@ -103,7 +103,7 @@ h1 { margin: 0; color: var(--forest); font: 650 29px/1 var(--serif); letter-spac
 .secondary-button { border-color: var(--line-strong); background: transparent; color: var(--ink-soft); }
 .secondary-button:hover { background: var(--paper-muted); color: var(--ink); }
 
-.workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: 220px minmax(330px, 1fr) minmax(390px, 42%); }
+.workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: 220px minmax(0, 2fr) minmax(0, 3fr); }
 .filters, .items-pane, .detail-pane { min-height: 0; }
 .filters { padding: 20px 15px; overflow-y: auto; background: var(--paper-bright); border-right: 1px solid var(--line); }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 5px 21px; }
@@ -544,7 +544,7 @@ legend { width: 100%; margin-bottom: 8px; color: #737b76; font: 700 10px/1 var(-
   .nav-footer { padding-inline: 0; }
   .health-row span:last-child, .workspace-label { display: none; }
   .health-row { justify-content: center; }
-  .workspace { grid-template-columns: 190px minmax(310px, 1fr) minmax(350px, 43%); }
+  .workspace { grid-template-columns: 190px minmax(0, 2fr) minmax(0, 3fr); }
 }
 
 @media (max-width: 900px) {
