@@ -42,6 +42,7 @@ class ControlCenterApiTests(unittest.TestCase):
             "pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css",
             response.text,
         )
+        self.assertNotIn(">Evidence</a>", response.text)
 
     def test_memo_markdown_renderer_preserves_nested_list_depth(self) -> None:
         app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
@@ -95,6 +96,62 @@ process.stdout.write(context.renderMarkdown("first line\\n\\n\\nsecond line"));
         self.assertEqual(
             result.stdout,
             "<p>first line<br><br><br>second line</p>",
+        )
+
+    def test_memo_markdown_renderer_preserves_plain_text_indentation(self) -> None:
+        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        script = """
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const renderer = source.slice(
+  source.indexOf("function escapeHtml"),
+  source.indexOf("function updateMemoPreview"),
+);
+const context = {};
+vm.createContext(context);
+vm.runInContext(renderer, context);
+process.stdout.write(context.renderMarkdown("plain\\n  two spaces\\n\\ttab indentation"));
+"""
+        result = subprocess.run(
+            ["node", "-e", script, str(app_js)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(
+            result.stdout,
+            "<p>plain<br>&nbsp;&nbsp;two spaces<br>&nbsp;&nbsp;tab indentation</p>",
+        )
+
+    def test_memo_markdown_renderer_supports_alpha_ordered_lists(self) -> None:
+        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        script = """
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const renderer = source.slice(
+  source.indexOf("function escapeHtml"),
+  source.indexOf("function updateMemoPreview"),
+);
+const context = {};
+vm.createContext(context);
+vm.runInContext(renderer, context);
+process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha\\nb) lower beta\\n1. number\\n   A. nested alpha"));
+"""
+        result = subprocess.run(
+            ["node", "-e", script, str(app_js)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(
+            result.stdout,
+            '<ol type="A"><li>alpha</li><li>beta</li></ol>'
+            '<ol type="a"><li>lower alpha</li><li>lower beta</li></ol>'
+            '<ol><li>number<ol type="A"><li>nested alpha</li></ol></li></ol>',
         )
 
     def test_create_draft_uses_server_owned_defaults(self) -> None:

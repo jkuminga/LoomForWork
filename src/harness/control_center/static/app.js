@@ -175,13 +175,18 @@ function renderMarkdown(value) {
   let inCode = false;
   const listStack = [];
   let paragraphLines = [];
-  const inline = (line) => escapeHtml(line)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+  const inline = (line) => {
+    const normalized = String(line).replaceAll("\t", "  ");
+    const leadingWhitespace = normalized.match(/^ */)?.[0] || "";
+    const content = escapeHtml(normalized.slice(leadingWhitespace.length))
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/_([^_]+)_/g, "<em>$1</em>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+    return `${"&nbsp;".repeat(leadingWhitespace.length)}${content}`;
+  };
   const closeList = () => {
     while (listStack.length) {
       const list = listStack.pop();
@@ -196,21 +201,25 @@ function renderMarkdown(value) {
     output.push(`<p>${content}</p>`);
     paragraphLines = [];
   };
-  const addListItem = (type, indent, content) => {
+  const openList = (type, style, indent, content) => {
+    const attribute = style === "upper-alpha" ? ' type="A"' : style === "lower-alpha" ? ' type="a"' : "";
+    output.push(`<${type}${attribute}><li>${inline(content)}`);
+    listStack.push({ type, style, indent });
+  };
+  const addListItem = (type, style, indent, content) => {
     while (listStack.length && indent < listStack.at(-1).indent) {
       const list = listStack.pop();
       output.push(`</li></${list.type}>`);
     }
     const current = listStack.at(-1);
     if (!current || indent > current.indent) {
-      output.push(`<${type}><li>${inline(content)}`);
-      listStack.push({ type, indent });
+      openList(type, style, indent, content);
       return;
     }
-    if (current.type !== type) {
+    if (current.type !== type || current.style !== style) {
       listStack.pop();
-      output.push(`</li></${current.type}><${type}><li>${inline(content)}`);
-      listStack.push({ type, indent });
+      output.push(`</li></${current.type}>`);
+      openList(type, style, indent, content);
       return;
     }
     output.push(`</li><li>${inline(content)}`);
@@ -224,14 +233,19 @@ function renderMarkdown(value) {
     }
     if (inCode) { output.push(`${escapeHtml(line)}\n`); continue; }
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
-    const listItem = line.match(/^(\s*)([-*]|\d+[.)])\s+(.+)$/);
+    const listItem = line.match(/^(\s*)([-*]|(?:\d+|[A-Za-z])[.)])\s+(.+)$/);
     const quote = line.match(/^\s*>\s?(.*)$/);
     if (heading) { closeParagraph(); closeList(); output.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`); }
     else if (listItem) {
       closeParagraph();
-      const type = /^\d/.test(listItem[2]) ? "ol" : "ul";
+      const marker = listItem[2];
+      const style = /^\d/.test(marker) ? "decimal"
+        : /^[A-Z]/.test(marker) ? "upper-alpha"
+        : /^[a-z]/.test(marker) ? "lower-alpha"
+        : null;
+      const type = style ? "ol" : "ul";
       const indent = listItem[1].replaceAll("\t", "  ").length;
-      addListItem(type, indent, listItem[3]);
+      addListItem(type, style, indent, listItem[3]);
     }
     else if (quote) { closeParagraph(); closeList(); output.push(`<blockquote>${inline(quote[1])}</blockquote>`); }
     else if (!line.trim()) { closeList(); paragraphLines.push(""); }
