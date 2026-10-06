@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import state_store
+from .overview_api import create_router as create_overview_router
 from .runs_api import create_router as create_runs_router
 from .work_items_api import create_router
 
@@ -52,6 +53,7 @@ def create_app(
     )
     application.state.database_path = selected_database
     application.include_router(create_router())
+    application.include_router(create_overview_router())
     application.include_router(create_runs_router())
     application.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

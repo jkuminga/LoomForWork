@@ -26,7 +26,7 @@
         </div>
 
         <nav class="nav-list">
-          <a href="#" aria-disabled="true"><span>◫</span>Overview</a>
+          <a id="nav-overview" href="#overview"><span>◫</span>Overview</a>
           <a href="#" aria-disabled="true"><span>◇</span>Features</a>
           <a class="active" id="nav-work-items" href="#work-items" aria-current="page"><span>≡</span>Work Items</a>
           <a id="nav-runs" href="#runs"><span>▷</span>Runs</a>
@@ -60,6 +60,44 @@
             </button>
           </div>
         </header>
+
+        <main class="overview-workspace hidden" id="overview-view">
+          <section class="overview-toolbar" aria-label="Overview 그래프 도구">
+            <div class="overview-toolbar-copy">
+              <span class="eyebrow">GRAPH NETWORK</span>
+              <p>진행 가능한 WorkItem과 Run의 연결 관계를 탐색하세요. 완료된 작업은 Work Items 상세 페이지에서 확인할 수 있습니다.</p>
+            </div>
+            <button class="primary-button overview-refresh" id="refresh-overview" type="button">↻ 새로고침</button>
+          </section>
+          <section class="overview-controls" aria-label="Overview 그래프 필터">
+            <label class="overview-search">
+              <span>Search</span>
+              <input id="overview-query" type="search" maxlength="200" placeholder="ID, 제목, Intent 검색" autocomplete="off" />
+            </label>
+            <div class="overview-scope" role="group" aria-label="노드 종류">
+              <button type="button" data-overview-scope="all" class="active">All <b id="overview-all-count">0</b></button>
+              <button type="button" data-overview-scope="feature">Features <b id="overview-feature-count">0</b></button>
+              <button type="button" data-overview-scope="work_item">WorkItems <b id="overview-work-item-count">0</b></button>
+              <button type="button" data-overview-scope="run">Runs <b id="overview-run-count">0</b></button>
+            </div>
+            <label class="overview-status-filter"><span>Status</span><select id="overview-status"><option value="">All Status</option><option value="planned">Planned</option><option value="active">Active</option><option value="backlog">Backlog</option><option value="ready">Ready</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option><option value="running">Running</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="cancelled">Cancelled</option></select></label>
+            <div class="overview-control-actions">
+              <button class="secondary-button" id="overview-fit" type="button">⌗ Fit to Screen</button>
+              <button class="secondary-button" id="overview-reset" type="button">↻ 초기화</button>
+              <button class="secondary-button" id="overview-spread" type="button" aria-pressed="false">☷ Force Settings</button>
+            </div>
+          </section>
+          <section class="overview-graph-panel" aria-label="Feature WorkItem Run 그래프">
+            <div class="loading-state hidden" id="overview-loading"><span class="spinner"></span><p>Overview를 불러오는 중입니다.</p></div>
+            <svg id="overview-graph" viewBox="0 0 1400 760" role="img" aria-label="Feature, WorkItem, Run 관계 그래프">
+              <g id="overview-graph-scene"></g>
+            </svg>
+            <aside class="overview-selection hidden" id="overview-selection" aria-live="polite"></aside>
+            <div class="overview-legend" aria-label="그래프 범례"><span><i class="overview-legend-feature"></i>Feature</span><span><i class="overview-legend-work-item"></i>WorkItem</span><span><i class="overview-legend-run"></i>Run</span></div>
+            <div class="overview-zoom-controls" aria-label="그래프 확대 축소"><button id="overview-zoom-in" type="button" aria-label="확대">＋</button><button id="overview-zoom-out" type="button" aria-label="축소">−</button><button id="overview-zoom-reset" type="button" aria-label="확대 축소 초기화">⌗</button></div>
+          </section>
+          <div class="overview-engine-status"><span class="pulse-dot"></span><strong>Network Graph</strong><span id="overview-engine-summary">관계를 불러오는 중</span><span class="overview-engine-hint">빈 공간을 드래그하고 휠로 확대·축소하세요.</span></div>
+        </main>
 
         <main class="workspace" id="work-items-view">
           <aside class="filters" aria-label="WorkItem 필터">

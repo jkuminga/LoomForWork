@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -43,6 +44,177 @@ class ControlCenterApiTests(unittest.TestCase):
             response.text,
         )
         self.assertNotIn(">Evidence</a>", response.text)
+
+    def test_overview_api_returns_features_work_items_runs_and_links(self) -> None:
+        feature = state_store.create_feature(
+            title="컨텍스트 주입과 상태 관리",
+            goal="관련 작업을 하나의 기능으로 묶는다.",
+            actor="test",
+            feature_id="FEAT-overview",
+            database_path=self.database_path,
+        )
+        work_item = state_store.create_ready_work_item(
+            title="Overview 그래프 구현 작업",
+            kind="implementation",
+            goal="Feature, WorkItem, Run 관계를 표시한다.",
+            next_action="그래프를 렌더링한다.",
+            acceptance_criteria=["관계 그래프가 표시된다."],
+            actor="test",
+            feature_id=feature["id"],
+            work_item_id="WI-overview",
+            database_path=self.database_path,
+        )
+        run = state_store.start_run(
+            work_item["id"],
+            intent="Overview 네트워크 그래프를 구현한다.",
+            recall_query="Overview 그래프",
+            actor="test",
+            run_id="RUN-overview",
+            database_path=self.database_path,
+        )
+        completed_item = state_store.create_ready_work_item(
+            title="완료된 Overview 작업",
+            kind="implementation",
+            goal="완료 WI가 Overview에서 제외되는지 검증한다.",
+            next_action="완료 처리한다.",
+            acceptance_criteria=["완료 상태가 확인된다."],
+            actor="test",
+            feature_id=feature["id"],
+            work_item_id="WI-overview-done",
+            database_path=self.database_path,
+        )
+        completed_run = state_store.start_run(
+            completed_item["id"],
+            intent="완료될 작업을 실행한다.",
+            recall_query="완료 작업",
+            actor="test",
+            run_id="RUN-overview-done",
+            database_path=self.database_path,
+        )
+        state_store.finish_run(
+            completed_run["id"],
+            run_status="succeeded",
+            work_item_status="ready",
+            summary="완료 준비가 끝났다.",
+            next_action="사용자 확인을 기다린다.",
+            actor="test",
+            reason="테스트 준비",
+            database_path=self.database_path,
+        )
+        completed_criterion = state_store.get_work_item_context(
+            completed_item["id"], database_path=self.database_path
+        )["acceptance_criteria"][0]
+        state_store.waive_criterion(
+            completed_criterion["id"],
+            actor="user",
+            reason="Overview 완료 제외 검증",
+            database_path=self.database_path,
+        )
+        state_store.close_work_item(
+            completed_item["id"],
+            actor="user",
+            reason="Overview 완료 제외 검증",
+            database_path=self.database_path,
+        )
+
+        response = self.client.get("/api/overview")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["features"][0]["id"], feature["id"])
+        self.assertEqual(payload["work_items"][0]["feature_id"], feature["id"])
+        self.assertEqual(payload["runs"][0]["id"], run["id"])
+        self.assertNotIn(completed_item["id"], {item["id"] for item in payload["work_items"]})
+        self.assertNotIn(completed_run["id"], {item["id"] for item in payload["runs"]})
+        self.assertIn(
+            {"source": feature["id"], "target": work_item["id"], "kind": "feature_work_item"},
+            payload["links"],
+        )
+        self.assertIn(
+            {"source": work_item["id"], "target": run["id"], "kind": "work_item_run"},
+            payload["links"],
+        )
+        self.assertEqual(payload["summary"]["running_count"], 1)
+        self.assertEqual(payload["summary"]["work_item_count"], 1)
+        self.assertEqual(payload["summary"]["run_count"], 1)
+
+    def test_overview_ui_uses_compact_feature_and_work_item_titles(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        styles = (root / "styles.css").read_text()
+        index = (root / "index.html").read_text()
+
+        self.assertIn('id="overview-view"', index)
+        self.assertIn('id="overview-graph"', index)
+        self.assertIn('id="nav-overview"', index)
+        self.assertIn("완료된 작업은 Work Items 상세 페이지", index)
+        self.assertIn("function overviewShortTitle(value, maximum = 10)", app_js)
+        self.assertIn("function overviewFeatureTitleLines(value)", app_js)
+        self.assertIn("overviewShortTitle(node.title, 10)", app_js)
+        self.assertIn("<title>${escapeHtml(node.title)}</title>", app_js)
+        self.assertIn('<circle r="8"></circle>', app_js)
+        self.assertNotIn('class="overview-run-id"', app_js)
+        self.assertNotIn('class="overview-run-mark"', app_js)
+        self.assertIn("overview-edge-status-", app_js)
+        self.assertIn('<rect x="-66" y="-39" width="132" height="78" rx="13"></rect>', app_js)
+        self.assertIn(".overview-node-feature .overview-node-title", styles)
+        self.assertIn(".overview-node-work-item .overview-node-title", styles)
+
+    def test_overview_layout_keeps_work_item_run_clusters_apart(self) -> None:
+        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        script = """
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const layoutSource = source.slice(
+  source.indexOf("function overviewRunRingRadius"),
+  source.indexOf("function overviewFeatureNodeHtml"),
+);
+const context = { state: { overviewSpread: false } };
+vm.createContext(context);
+vm.runInContext(layoutSource, context);
+const counts = [19, 1, 5, 1];
+const workItems = counts.map((count, index) => ({
+  id: `WI-${index}`, type: "work_item", feature_id: null, childCount: count,
+}));
+const runs = counts.flatMap((count, workItemIndex) => Array.from({ length: count }, (_, runIndex) => ({
+  id: `RUN-${workItemIndex}-${runIndex}`, type: "run", work_item_id: `WI-${workItemIndex}`,
+})));
+const layout = context.overviewLayout([...workItems, ...runs]);
+const overlaps = [];
+for (let left = 0; left < workItems.length; left += 1) {
+  for (let right = left + 1; right < workItems.length; right += 1) {
+    const leftPosition = layout.positions.get(workItems[left].id);
+    const rightPosition = layout.positions.get(workItems[right].id);
+    const minimum = context.overviewWorkItemClusterRadius(counts[left], 1)
+      + context.overviewWorkItemClusterRadius(counts[right], 1);
+    if (Math.hypot(leftPosition.x - rightPosition.x, leftPosition.y - rightPosition.y) < minimum) {
+      overlaps.push([workItems[left].id, workItems[right].id]);
+    }
+  }
+}
+const firstWorkItem = layout.positions.get(workItems[0].id);
+const firstRunDistances = runs.filter((run) => run.work_item_id === workItems[0].id).map((run) => {
+  const position = layout.positions.get(run.id);
+  return Math.hypot(position.x - firstWorkItem.x, position.y - firstWorkItem.y);
+});
+process.stdout.write(JSON.stringify({
+  overlaps,
+  ringSpread: Math.max(...firstRunDistances) - Math.min(...firstRunDistances),
+  width: layout.width,
+  height: layout.height,
+}));
+"""
+        result = subprocess.run(
+            ["node", "-e", script, str(app_js)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        layout_result = json.loads(result.stdout)
+        self.assertEqual(layout_result["overlaps"], [])
+        self.assertLess(layout_result["ringSpread"], 0.001)
 
     def test_memo_markdown_renderer_preserves_nested_list_depth(self) -> None:
         app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"

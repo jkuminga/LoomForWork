@@ -56,6 +56,16 @@ const state = {
   pendingRunId: null,
   expandedRunId: null,
   runDetails: new Map(),
+  overview: null,
+  overviewQuery: "",
+  overviewScope: "all",
+  overviewStatus: "",
+  overviewSelectedId: null,
+  overviewScale: 1,
+  overviewOffset: { x: 0, y: 0 },
+  overviewSpread: false,
+  overviewDragging: null,
+  overviewCanvas: { width: 1400, height: 760 },
 };
 
 const elements = {
@@ -83,6 +93,12 @@ const elements = {
   submitMemo: document.querySelector("#submit-memo"),
   workItemsView: document.querySelector("#work-items-view"),
   runsView: document.querySelector("#runs-view"),
+  overviewView: document.querySelector("#overview-view"),
+  overviewGraph: document.querySelector("#overview-graph"),
+  overviewScene: document.querySelector("#overview-graph-scene"),
+  overviewSelection: document.querySelector("#overview-selection"),
+  overviewLoading: document.querySelector("#overview-loading"),
+  overviewEngineSummary: document.querySelector("#overview-engine-summary"),
   runsBody: document.querySelector("#runs-table-body"),
   runsLoading: document.querySelector("#runs-loading"),
   runsEmpty: document.querySelector("#runs-empty"),
@@ -986,6 +1002,328 @@ async function loadItems({ selectId = null } = {}) {
   }
 }
 
+function overviewShortTitle(value, maximum = 10) {
+  const characters = Array.from(String(value || "제목 없음").trim());
+  if (characters.length <= maximum) return characters.join("");
+  return `${characters.slice(0, maximum - 1).join("")}…`;
+}
+
+function overviewFeatureTitleLines(value) {
+  const characters = Array.from(overviewShortTitle(value, 10));
+  return [characters.slice(0, 5).join(""), characters.slice(5, 10).join("")].filter(Boolean);
+}
+
+function overviewNodeStatusClass(status) {
+  const normalized = String(status || "unknown").replace(/[^a-z0-9_-]/gi, "-");
+  return `overview-node-status-${normalized}`;
+}
+
+function overviewNodes(payload = state.overview) {
+  if (!payload) return [];
+  const workItemCounts = new Map();
+  const runCounts = new Map();
+  for (const item of payload.work_items) {
+    if (item.feature_id) workItemCounts.set(item.feature_id, (workItemCounts.get(item.feature_id) || 0) + 1);
+  }
+  for (const run of payload.runs) {
+    if (run.work_item_id) runCounts.set(run.work_item_id, (runCounts.get(run.work_item_id) || 0) + 1);
+  }
+  return [
+    ...payload.features.map((feature) => ({ ...feature, type: "feature", childCount: workItemCounts.get(feature.id) || 0 })),
+    ...payload.work_items.map((item) => ({ ...item, type: "work_item", childCount: runCounts.get(item.id) || 0 })),
+    ...payload.runs.map((run) => ({ ...run, type: "run", title: run.intent || run.id, childCount: 0 })),
+  ];
+}
+
+function filteredOverviewNodes() {
+  const query = state.overviewQuery.toLocaleLowerCase();
+  return overviewNodes().filter((node) => {
+    if (state.overviewScope !== "all" && node.type !== state.overviewScope) return false;
+    if (state.overviewStatus && node.status !== state.overviewStatus) return false;
+    if (!query) return true;
+    return [node.id, node.title, node.intent, node.feature_title, node.work_item_title]
+      .filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(query));
+  });
+}
+
+function overviewRunRingRadius(runCount, spread) {
+  const runDiameter = 16;
+  const minimumGap = 18;
+  const circumferenceRadius = (Math.max(runCount, 1) * (runDiameter + minimumGap)) / (Math.PI * 2);
+  return Math.max(128, circumferenceRadius) * spread;
+}
+
+function overviewWorkItemClusterRadius(runCount, spread) {
+  if (!runCount) return 82 * spread;
+  return overviewRunRingRadius(runCount, spread) + 24 * spread;
+}
+
+function packOverviewCircles(circles, reservedRadius = 0, gap = 30) {
+  const positions = new Map();
+  const placed = reservedRadius > 0 ? [{ id: null, x: 0, y: 0, radius: reservedRadius }] : [];
+  const ordered = [...circles].sort((left, right) => right.radius - left.radius || left.id.localeCompare(right.id));
+  const directions = 40;
+
+  for (const circle of ordered) {
+    if (!placed.length) {
+      positions.set(circle.id, { x: 0, y: 0 });
+      placed.push({ ...circle, x: 0, y: 0 });
+      continue;
+    }
+    let accepted = null;
+    for (let ring = 0; ring < 80 && !accepted; ring += 1) {
+      const distance = ring * 28 + (reservedRadius ? reservedRadius + circle.radius + gap : 0);
+      for (let step = 0; step < directions; step += 1) {
+        const angle = (Math.PI * 2 * step) / directions + ring * .31;
+        const candidate = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+        const collides = placed.some((other) => {
+          const minimumDistance = circle.radius + other.radius + gap;
+          return Math.hypot(candidate.x - other.x, candidate.y - other.y) < minimumDistance;
+        });
+        if (!collides) { accepted = candidate; break; }
+      }
+    }
+    const position = accepted || { x: placed.length * (circle.radius * 2 + gap), y: 0 };
+    positions.set(circle.id, position);
+    placed.push({ ...circle, ...position });
+  }
+
+  const radius = placed.reduce((maximum, circle) => {
+    if (circle.id === null) return Math.max(maximum, circle.radius);
+    return Math.max(maximum, Math.hypot(circle.x, circle.y) + circle.radius);
+  }, reservedRadius);
+  return { positions, radius };
+}
+
+function overviewLayout(nodes) {
+  const positions = new Map();
+  const features = nodes.filter((node) => node.type === "feature");
+  const workItems = nodes.filter((node) => node.type === "work_item");
+  const runs = nodes.filter((node) => node.type === "run");
+  const spread = state.overviewSpread ? 1.3 : 1;
+  const visibleWorkItemIds = new Set(workItems.map((item) => item.id));
+  const runGroups = new Map();
+  for (const run of runs) {
+    if (!visibleWorkItemIds.has(run.work_item_id)) continue;
+    const group = runGroups.get(run.work_item_id) || [];
+    group.push(run);
+    runGroups.set(run.work_item_id, group);
+  }
+
+  const visibleFeatureIds = new Set(features.map((feature) => feature.id));
+  const workItemGroups = new Map(features.map((feature) => [feature.id, []]));
+  workItemGroups.set("orphan", []);
+  for (const item of workItems) {
+    const parentId = visibleFeatureIds.has(item.feature_id) ? item.feature_id : "orphan";
+    workItemGroups.get(parentId).push(item);
+  }
+
+  const graphGroups = [];
+  for (const feature of features) {
+    const children = workItemGroups.get(feature.id);
+    const circles = children.map((item) => ({
+      id: item.id,
+      radius: overviewWorkItemClusterRadius((runGroups.get(item.id) || []).length, spread),
+    }));
+    const local = packOverviewCircles(circles, 92 * spread, 34 * spread);
+    graphGroups.push({ id: `group:${feature.id}`, feature, children, local, radius: local.radius + 34 * spread });
+  }
+  const orphanChildren = workItemGroups.get("orphan");
+  if (orphanChildren.length) {
+    const circles = orphanChildren.map((item) => ({
+      id: item.id,
+      radius: overviewWorkItemClusterRadius((runGroups.get(item.id) || []).length, spread),
+    }));
+    const local = packOverviewCircles(circles, 0, 42 * spread);
+    graphGroups.push({ id: "group:orphan", feature: null, children: orphanChildren, local, radius: local.radius + 34 * spread });
+  }
+
+  const attachedRunIds = new Set([...runGroups.values()].flat().map((run) => run.id));
+  const standaloneRuns = runs.filter((run) => !attachedRunIds.has(run.id));
+  if (standaloneRuns.length) {
+    const local = packOverviewCircles(standaloneRuns.map((run) => ({ id: run.id, radius: 32 * spread })), 0, 18 * spread);
+    graphGroups.push({ id: "group:runs", feature: null, children: [], standaloneRuns, local, radius: local.radius + 24 * spread });
+  }
+
+  const packedGroups = packOverviewCircles(
+    graphGroups.map((group) => ({ id: group.id, radius: group.radius })),
+    0,
+    55 * spread,
+  );
+  for (const group of graphGroups) {
+    const groupPosition = packedGroups.positions.get(group.id) || { x: 0, y: 0 };
+    if (group.feature) positions.set(group.feature.id, groupPosition);
+    for (const item of group.children) {
+      const localPosition = group.local.positions.get(item.id) || { x: 0, y: 0 };
+      positions.set(item.id, { x: groupPosition.x + localPosition.x, y: groupPosition.y + localPosition.y });
+    }
+    for (const run of group.standaloneRuns || []) {
+      const localPosition = group.local.positions.get(run.id) || { x: 0, y: 0 };
+      positions.set(run.id, { x: groupPosition.x + localPosition.x, y: groupPosition.y + localPosition.y });
+    }
+  }
+
+  for (const [workItemId, group] of runGroups) {
+    const parent = positions.get(workItemId);
+    if (!parent) continue;
+    const radius = overviewRunRingRadius(group.length, spread);
+    group.forEach((run, index) => {
+      const angle = (Math.PI * 2 * index) / group.length - Math.PI / 2;
+      positions.set(run.id, { x: parent.x + Math.cos(angle) * radius, y: parent.y + Math.sin(angle) * radius });
+    });
+  }
+
+  for (const node of nodes) {
+    if (!positions.has(node.id)) positions.set(node.id, { x: 0, y: 0 });
+  }
+  const nodeRadius = (node) => node.type === "feature" ? 82 : node.type === "work_item" ? 76 : 16;
+  const bounds = nodes.reduce((result, node) => {
+    const position = positions.get(node.id);
+    const radius = nodeRadius(node) * spread;
+    return {
+      minX: Math.min(result.minX, position.x - radius), maxX: Math.max(result.maxX, position.x + radius),
+      minY: Math.min(result.minY, position.y - radius), maxY: Math.max(result.maxY, position.y + radius),
+    };
+  }, { minX: 0, maxX: 0, minY: 0, maxY: 0 });
+  const contentWidth = bounds.maxX - bounds.minX;
+  const contentHeight = bounds.maxY - bounds.minY;
+  const width = Math.max(1400, contentWidth + 180);
+  const height = Math.max(760, contentHeight + 180);
+  const offsetX = (width - contentWidth) / 2 - bounds.minX;
+  const offsetY = (height - contentHeight) / 2 - bounds.minY;
+  for (const [id, position] of positions) positions.set(id, { x: position.x + offsetX, y: position.y + offsetY });
+  return { positions, width, height };
+}
+
+function overviewFeatureNodeHtml(node, position) {
+  const lines = overviewFeatureTitleLines(node.title);
+  return `<g class="overview-node overview-node-feature ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(node.title)}">
+    <title>${escapeHtml(node.title)}</title><rect x="-72" y="-55" width="144" height="110" rx="17"></rect>
+    <text class="overview-node-id" text-anchor="middle" y="-29">${escapeHtml(node.id)}</text>
+    ${lines.map((line, index) => `<text class="overview-node-title" text-anchor="middle" y="${lines.length === 1 ? 2 : -2 + index * 22}">${escapeHtml(line)}</text>`).join("")}
+    <text class="overview-node-count" text-anchor="middle" y="39">${node.childCount} WIs</text>
+  </g>`;
+}
+
+function overviewWorkItemNodeHtml(node, position) {
+  return `<g class="overview-node overview-node-work-item ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(node.title)}">
+    <title>${escapeHtml(node.title)}</title><rect x="-66" y="-39" width="132" height="78" rx="13"></rect>
+    <text class="overview-node-id" text-anchor="middle" y="-18">${escapeHtml(node.id)}</text>
+    <text class="overview-node-title" text-anchor="middle" y="5">${escapeHtml(overviewShortTitle(node.title, 10))}</text>
+    <text class="overview-node-count" text-anchor="middle" y="25">${node.childCount} Runs</text>
+  </g>`;
+}
+
+function overviewRunNodeHtml(node, position) {
+  const status = runStatusLabel(node.status);
+  return `<g class="overview-node overview-node-run ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(status)}">
+    <title>${escapeHtml(node.intent || node.id)}</title><circle r="8"></circle>
+  </g>`;
+}
+
+function overviewSelectionHtml(node) {
+  if (!node) return "";
+  const typeLabel = { feature: "Feature", work_item: "WorkItem", run: "Run" }[node.type];
+  const parent = node.type === "work_item" ? node.feature_title : node.type === "run" ? node.work_item_title : null;
+  const action = node.type === "work_item"
+    ? `<button type="button" data-overview-open-work-item="${escapeHtml(node.id)}">WorkItem 상세 보기 →</button>`
+    : node.type === "run"
+      ? `<button type="button" data-overview-open-run="${escapeHtml(node.id)}" data-overview-run-work-item="${escapeHtml(node.work_item_id || "")}">Run 상세 보기 →</button>` : "";
+  return `<div class="overview-selection-heading"><span>${escapeHtml(typeLabel)}</span><button type="button" data-overview-close aria-label="상세 닫기">×</button></div>
+    <code>${escapeHtml(node.id)}</code><h3>${escapeHtml(node.title)}</h3>
+    <dl><div><dt>Status</dt><dd>${escapeHtml(node.status)}</dd></div>${parent ? `<div><dt>Parent</dt><dd>${escapeHtml(parent)}</dd></div>` : ""}<div><dt>Connected</dt><dd>${node.childCount || 0}</dd></div></dl>${action}`;
+}
+
+function applyOverviewTransform() {
+  if (!elements.overviewScene) return;
+  const { x, y } = state.overviewOffset;
+  elements.overviewScene.setAttribute("transform", `translate(${x} ${y}) scale(${state.overviewScale})`);
+}
+
+function bindOverviewNodes(nodes) {
+  document.querySelectorAll("[data-overview-node]").forEach((element) => {
+    const select = () => { state.overviewSelectedId = element.dataset.overviewNode; renderOverview(); };
+    const connectedEdge = () => [...document.querySelectorAll("[data-overview-edge-target]")]
+      .find((edge) => edge.dataset.overviewEdgeTarget === element.dataset.overviewNode);
+    element.addEventListener("click", (event) => { event.stopPropagation(); select(); });
+    element.addEventListener("pointerenter", () => connectedEdge()?.classList.add("is-hovered"));
+    element.addEventListener("pointerleave", () => connectedEdge()?.classList.remove("is-hovered"));
+    element.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); }
+    });
+  });
+  document.querySelector("[data-overview-close]")?.addEventListener("click", () => { state.overviewSelectedId = null; renderOverview(); });
+  document.querySelector("[data-overview-open-work-item]")?.addEventListener("click", (event) => {
+    switchView("work-items", event.currentTarget.dataset.overviewOpenWorkItem);
+  });
+  document.querySelector("[data-overview-open-run]")?.addEventListener("click", (event) => {
+    switchView("runs", event.currentTarget.dataset.overviewRunWorkItem || null, event.currentTarget.dataset.overviewOpenRun);
+  });
+}
+
+function renderOverview() {
+  if (!state.overview || !elements.overviewScene) return;
+  const allNodes = overviewNodes();
+  const nodes = filteredOverviewNodes();
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const layout = overviewLayout(nodes);
+  const positions = layout.positions;
+  state.overviewCanvas = { width: layout.width, height: layout.height };
+  elements.overviewGraph.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
+  const links = state.overview.links.filter((link) => nodeById.has(link.source) && nodeById.has(link.target));
+  const edges = links.map((link) => {
+    const source = positions.get(link.source);
+    const target = positions.get(link.target);
+    const targetNode = nodeById.get(link.target);
+    const runStatusClass = targetNode?.type === "run" ? ` overview-edge-status-${escapeHtml(targetNode.status)}` : "";
+    const selectedClass = state.overviewSelectedId === link.target ? " is-selected" : "";
+    const edgeTarget = targetNode?.type === "run" ? ` data-overview-edge-target="${escapeHtml(link.target)}"` : "";
+    return `<line class="overview-edge overview-edge-${escapeHtml(link.kind.replaceAll("_", "-"))}${runStatusClass}${selectedClass}"${edgeTarget} x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"></line>`;
+  }).join("");
+  const nodeMarkup = nodes.map((node) => {
+    const position = positions.get(node.id);
+    if (node.type === "feature") return overviewFeatureNodeHtml(node, position);
+    if (node.type === "work_item") return overviewWorkItemNodeHtml(node, position);
+    return overviewRunNodeHtml(node, position);
+  }).join("");
+  elements.overviewScene.innerHTML = `${edges}${nodeMarkup}`;
+  applyOverviewTransform();
+
+  const counts = {
+    feature: allNodes.filter((node) => node.type === "feature").length,
+    work_item: allNodes.filter((node) => node.type === "work_item").length,
+  };
+  document.querySelector("#overview-all-count").textContent = String(allNodes.length);
+  document.querySelector("#overview-feature-count").textContent = String(counts.feature);
+  document.querySelector("#overview-work-item-count").textContent = String(counts.work_item);
+  document.querySelector("#overview-run-count").textContent = String(state.overview.summary.run_count);
+  elements.overviewEngineSummary.textContent = `Nodes ${nodes.length} · Links ${links.length}${state.overview.summary.truncated_runs ? " · 최근 Run 100개" : ""}`;
+  elements.visibleCount.textContent = `${allNodes.length} nodes`;
+  elements.dockSummary.textContent = `Feature ${counts.feature} · WorkItem ${counts.work_item} · Run ${state.overview.summary.run_count}`;
+
+  const selected = allNodes.find((node) => node.id === state.overviewSelectedId);
+  elements.overviewSelection.classList.toggle("hidden", !selected);
+  elements.overviewSelection.innerHTML = overviewSelectionHtml(selected);
+  bindOverviewNodes(nodes);
+}
+
+async function loadOverview() {
+  elements.overviewLoading.classList.remove("hidden");
+  try {
+    state.overview = await api("/api/overview");
+    elements.healthDot.className = "health-dot healthy";
+    elements.healthLabel.textContent = "State DB 연결됨";
+    renderOverview();
+  } catch (error) {
+    elements.healthDot.className = "health-dot failed";
+    elements.healthLabel.textContent = "State DB 연결 실패";
+    elements.overviewScene.innerHTML = `<text class="overview-error" x="700" y="380" text-anchor="middle">${escapeHtml(error.message)}</text>`;
+    elements.overviewEngineSummary.textContent = "그래프를 불러오지 못했습니다.";
+  } finally {
+    elements.overviewLoading.classList.add("hidden");
+  }
+}
+
 function periodStart(value) {
   if (!value) return null;
   const now = new Date();
@@ -1150,17 +1488,23 @@ async function loadRuns() {
 
 async function switchView(view, selectedWorkItemId = null, selectedRunId = null) {
   state.currentView = view;
+  const isOverview = view === "overview";
   const isRuns = view === "runs";
-  elements.workItemsView.classList.toggle("hidden", isRuns);
+  elements.overviewView.classList.toggle("hidden", !isOverview);
+  elements.workItemsView.classList.toggle("hidden", isOverview || isRuns);
   elements.runsView.classList.toggle("hidden", !isRuns);
-  document.querySelector("#nav-work-items").classList.toggle("active", !isRuns);
+  document.querySelector("#nav-overview").classList.toggle("active", isOverview);
+  document.querySelector("#nav-work-items").classList.toggle("active", !isOverview && !isRuns);
   document.querySelector("#nav-runs").classList.toggle("active", isRuns);
-  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isRuns);
+  document.querySelector("#nav-overview").toggleAttribute("aria-current", isOverview);
+  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isOverview && !isRuns);
   document.querySelector("#nav-runs").toggleAttribute("aria-current", isRuns);
-  document.querySelector("#page-title").textContent = isRuns ? "Runs" : "Work Items";
-  document.querySelector("#page-crumb").textContent = isRuns ? "Runs" : "Work Items";
-  document.querySelector("#open-draft-modal").classList.toggle("hidden", isRuns);
-  if (isRuns) {
+  const title = isOverview ? "Overview" : isRuns ? "Runs" : "Work Items";
+  document.querySelector("#page-title").textContent = title;
+  document.querySelector("#page-crumb").textContent = title;
+  document.querySelector("#open-draft-modal").classList.toggle("hidden", isOverview || isRuns);
+  if (isOverview) await loadOverview();
+  else if (isRuns) {
     state.runsWorkItemId = selectedWorkItemId;
     state.pendingRunId = selectedRunId;
     if (selectedRunId) {
@@ -1383,8 +1727,60 @@ document.querySelector("#open-draft-modal").addEventListener("click", openModal)
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
+document.querySelector("#nav-overview").addEventListener("click", (event) => { event.preventDefault(); switchView("overview"); });
 document.querySelector("#nav-work-items").addEventListener("click", (event) => { event.preventDefault(); switchView("work-items"); });
 document.querySelector("#nav-runs").addEventListener("click", (event) => { event.preventDefault(); switchView("runs"); });
+document.querySelector("#refresh-overview").addEventListener("click", () => loadOverview());
+document.querySelector("#overview-query").addEventListener("input", (event) => { state.overviewQuery = event.target.value.trim(); renderOverview(); });
+document.querySelector("#overview-status").addEventListener("change", (event) => { state.overviewStatus = event.target.value; renderOverview(); });
+document.querySelectorAll("[data-overview-scope]").forEach((button) => button.addEventListener("click", () => {
+  state.overviewScope = button.dataset.overviewScope;
+  document.querySelectorAll("[data-overview-scope]").forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+  renderOverview();
+}));
+document.querySelector("#overview-fit").addEventListener("click", () => { state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; applyOverviewTransform(); });
+document.querySelector("#overview-reset").addEventListener("click", () => {
+  state.overviewQuery = ""; state.overviewScope = "all"; state.overviewStatus = ""; state.overviewSelectedId = null;
+  state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; state.overviewSpread = false;
+  document.querySelector("#overview-query").value = ""; document.querySelector("#overview-status").value = "";
+  document.querySelector("#overview-spread").setAttribute("aria-pressed", "false");
+  document.querySelectorAll("[data-overview-scope]").forEach((button) => button.classList.toggle("active", button.dataset.overviewScope === "all"));
+  renderOverview();
+});
+document.querySelector("#overview-spread").addEventListener("click", (event) => {
+  state.overviewSpread = !state.overviewSpread;
+  event.currentTarget.setAttribute("aria-pressed", String(state.overviewSpread));
+  renderOverview();
+});
+function changeOverviewZoom(delta) {
+  state.overviewScale = Math.max(.55, Math.min(2.1, state.overviewScale + delta));
+  applyOverviewTransform();
+}
+document.querySelector("#overview-zoom-in").addEventListener("click", () => changeOverviewZoom(.15));
+document.querySelector("#overview-zoom-out").addEventListener("click", () => changeOverviewZoom(-.15));
+document.querySelector("#overview-zoom-reset").addEventListener("click", () => { state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; applyOverviewTransform(); });
+elements.overviewGraph.addEventListener("wheel", (event) => { event.preventDefault(); changeOverviewZoom(event.deltaY < 0 ? .1 : -.1); }, { passive: false });
+elements.overviewGraph.addEventListener("pointerdown", (event) => {
+  if (event.target.closest?.("[data-overview-node]")) return;
+  state.overviewDragging = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, origin: { ...state.overviewOffset } };
+  elements.overviewGraph.setPointerCapture(event.pointerId);
+  elements.overviewGraph.classList.add("is-dragging");
+});
+elements.overviewGraph.addEventListener("pointermove", (event) => {
+  if (!state.overviewDragging || state.overviewDragging.pointerId !== event.pointerId) return;
+  const bounds = elements.overviewGraph.getBoundingClientRect();
+  state.overviewOffset = {
+    x: state.overviewDragging.origin.x + (event.clientX - state.overviewDragging.x) * state.overviewCanvas.width / bounds.width,
+    y: state.overviewDragging.origin.y + (event.clientY - state.overviewDragging.y) * state.overviewCanvas.height / bounds.height,
+  };
+  applyOverviewTransform();
+});
+elements.overviewGraph.addEventListener("pointerup", (event) => {
+  if (state.overviewDragging?.pointerId !== event.pointerId) return;
+  state.overviewDragging = null;
+  elements.overviewGraph.classList.remove("is-dragging");
+  elements.overviewGraph.releasePointerCapture(event.pointerId);
+});
 document.querySelector("#refresh-runs").addEventListener("click", () => loadRuns());
 document.querySelector("#runs-prev").addEventListener("click", () => { state.runsOffset = Math.max(0, state.runsOffset - state.runsLimit); loadRuns(); });
 document.querySelector("#runs-next").addEventListener("click", () => { state.runsOffset += state.runsLimit; loadRuns(); });
