@@ -243,6 +243,41 @@ process.stdout.write(context.renderMarkdown("- parent\\n  - child"));
             "<ul><li>parent<ul><li>child</li></ul></li></ul>",
         )
 
+    def test_memo_editor_guards_unsaved_changes_and_persists_browser_drafts(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        index = (root / "index.html").read_text()
+        styles = (root / "styles.css").read_text()
+
+        self.assertIn('id="memo-close-modal"', index)
+        self.assertIn('id="continue-memo-editing"', index)
+        self.assertIn('id="discard-memo-changes"', index)
+        self.assertIn('id="keep-memo-draft"', index)
+        self.assertNotIn('id="memo-close-description"', index)
+        self.assertIn('class="memo-close-button memo-close-continue"', index)
+        self.assertIn('class="memo-close-button memo-close-discard"', index)
+        self.assertIn('class="memo-close-button memo-close-save"', index)
+        self.assertIn("function memoHasUnsavedChanges()", app_js)
+        self.assertIn("harness:memo-draft:v1:", app_js)
+        self.assertIn("window.localStorage.setItem", app_js)
+        self.assertIn("window.localStorage.getItem", app_js)
+        self.assertIn(
+            'document.querySelector("#close-memo-modal").addEventListener("click", requestCloseMemoModal)',
+            app_js,
+        )
+        self.assertIn(
+            'if (event.target === elements.memoModal) requestCloseMemoModal()',
+            app_js,
+        )
+        self.assertIn(
+            'else if (!elements.memoModal.classList.contains("hidden")) requestCloseMemoModal()',
+            app_js,
+        )
+        self.assertIn(".confirmation-backdrop", styles)
+        self.assertIn(".memo-draft-status", styles)
+        self.assertIn(".memo-close-actions", styles)
+        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
+
     def test_memo_markdown_renderer_preserves_single_newlines(self) -> None:
         app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
         script = """

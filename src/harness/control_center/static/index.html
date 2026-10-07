@@ -294,7 +294,7 @@
     <div class="modal-backdrop hidden" id="memo-modal" role="presentation">
       <section class="modal memo-modal" role="dialog" aria-modal="true" aria-labelledby="memo-modal-title">
         <header class="modal-header">
-          <div><p class="eyebrow">WORK ITEM NOTE</p><h2 id="memo-modal-title">새 메모</h2></div>
+          <div><p class="eyebrow">WORK ITEM NOTE</p><div class="memo-modal-title-row"><h2 id="memo-modal-title">새 메모</h2><span class="memo-draft-status hidden" id="memo-draft-status" role="status"></span></div></div>
           <button class="icon-button" id="close-memo-modal" type="button" aria-label="닫기">×</button>
         </header>
         <form id="memo-form" novalidate>
@@ -331,6 +331,17 @@
             <button class="primary-button" id="submit-memo" type="submit"><span class="memo-submit-label">메모 저장</span><span class="button-spinner hidden" aria-hidden="true"></span></button>
           </footer>
         </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop confirmation-backdrop hidden" id="memo-close-modal" role="presentation">
+      <section class="modal compact-modal memo-close-modal" role="dialog" aria-modal="true" aria-labelledby="memo-close-title">
+        <header class="modal-header"><div><p class="eyebrow">UNSAVED CHANGES</p><h2 id="memo-close-title">작성 중인 내용이 있습니다</h2></div></header>
+        <footer class="modal-actions memo-close-actions">
+          <button class="memo-close-button memo-close-continue" id="continue-memo-editing" type="button">계속 작성</button>
+          <button class="memo-close-button memo-close-discard" id="discard-memo-changes" type="button">변경사항 버리기</button>
+          <button class="memo-close-button memo-close-save" id="keep-memo-draft" type="button">임시 저장 후 닫기</button>
+        </footer>
       </section>
     </div>
   </body>

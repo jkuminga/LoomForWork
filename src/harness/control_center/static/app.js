@@ -43,6 +43,11 @@ const state = {
   criterionEvidenceLoading: new Set(),
   criterionEvidenceErrors: new Map(),
   editingMemoId: null,
+  memoBaseline: null,
+  memoBaselineUpdatedAt: null,
+  memoDraftKey: null,
+  memoDraftTimer: null,
+  memoLastFocus: null,
   detailTab: "overview",
   currentView: "work-items",
   runs: [],
@@ -91,6 +96,8 @@ const elements = {
   memoForm: document.querySelector("#memo-form"),
   memoFormError: document.querySelector("#memo-form-error"),
   submitMemo: document.querySelector("#submit-memo"),
+  memoDraftStatus: document.querySelector("#memo-draft-status"),
+  memoCloseModal: document.querySelector("#memo-close-modal"),
   workItemsView: document.querySelector("#work-items-view"),
   runsView: document.querySelector("#runs-view"),
   overviewView: document.querySelector("#overview-view"),
@@ -303,6 +310,7 @@ function toggleMemoCodeFormatting(textarea) {
   }
   textarea.focus();
   updateMemoPreview();
+  scheduleMemoDraftSave();
 }
 
 function toggleMemoInlineFormatting(textarea, marker) {
@@ -322,6 +330,7 @@ function toggleMemoInlineFormatting(textarea, marker) {
   }
   textarea.focus();
   updateMemoPreview();
+  scheduleMemoDraftSave();
 }
 
 function indentMemoSelection(textarea, outdent = false) {
@@ -348,6 +357,7 @@ function indentMemoSelection(textarea, outdent = false) {
   }
   textarea.focus();
   updateMemoPreview();
+  scheduleMemoDraftSave();
 }
 
 function memoKindLabel(value) {
@@ -1619,10 +1629,103 @@ async function deleteSelectedItem() {
   }
 }
 
+function memoFormValues() {
+  const data = new FormData(elements.memoForm);
+  return {
+    title: String(data.get("title") || ""),
+    content: String(data.get("content") || ""),
+    kind: String(data.get("kind") || "general"),
+    author: String(data.get("author") || ""),
+    isModelVisible: data.has("is_model_visible"),
+  };
+}
+
+function applyMemoFormValues(values) {
+  elements.memoForm.elements.namedItem("title").value = values.title || "";
+  elements.memoForm.elements.namedItem("content").value = values.content || "";
+  elements.memoForm.elements.namedItem("kind").value = values.kind || "general";
+  elements.memoForm.elements.namedItem("author").value = values.author || "";
+  elements.memoForm.elements.namedItem("is_model_visible").checked = Boolean(values.isModelVisible);
+}
+
+function memoFormSignature(values = memoFormValues()) {
+  return JSON.stringify(values);
+}
+
+function memoDraftStorageKey(workItemId, memoId) {
+  return `harness:memo-draft:v1:${encodeURIComponent(workItemId)}:${encodeURIComponent(memoId || "new")}`;
+}
+
+function memoHasUnsavedChanges() {
+  return state.memoBaseline !== null && memoFormSignature() !== state.memoBaseline;
+}
+
+function showMemoDraftStatus(message, restored = false) {
+  elements.memoDraftStatus.textContent = message;
+  elements.memoDraftStatus.classList.toggle("is-restored", restored);
+  elements.memoDraftStatus.classList.remove("hidden");
+}
+
+function hideMemoDraftStatus() {
+  elements.memoDraftStatus.textContent = "";
+  elements.memoDraftStatus.classList.remove("is-restored");
+  elements.memoDraftStatus.classList.add("hidden");
+}
+
+function readMemoDraft() {
+  if (!state.memoDraftKey) return null;
+  try {
+    const value = window.localStorage.getItem(state.memoDraftKey);
+    return value ? JSON.parse(value) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function removeMemoDraft() {
+  if (state.memoDraftTimer) window.clearTimeout(state.memoDraftTimer);
+  state.memoDraftTimer = null;
+  if (!state.memoDraftKey) return;
+  try { window.localStorage.removeItem(state.memoDraftKey); } catch (_) { /* unavailable storage */ }
+}
+
+function persistMemoDraft() {
+  if (state.memoDraftTimer) window.clearTimeout(state.memoDraftTimer);
+  state.memoDraftTimer = null;
+  if (!state.memoDraftKey) return false;
+  if (!memoHasUnsavedChanges()) {
+    removeMemoDraft();
+    hideMemoDraftStatus();
+    return true;
+  }
+  const payload = {
+    version: 1,
+    baseUpdatedAt: state.memoBaselineUpdatedAt,
+    values: memoFormValues(),
+    savedAt: new Date().toISOString(),
+  };
+  try {
+    window.localStorage.setItem(state.memoDraftKey, JSON.stringify(payload));
+    showMemoDraftStatus("브라우저에 임시 저장됨");
+    return true;
+  } catch (_) {
+    showMemoDraftStatus("임시 저장 불가", true);
+    return false;
+  }
+}
+
+function scheduleMemoDraftSave() {
+  if (elements.memoModal.classList.contains("hidden")) return;
+  if (state.memoDraftTimer) window.clearTimeout(state.memoDraftTimer);
+  state.memoDraftTimer = window.setTimeout(persistMemoDraft, 400);
+}
+
 function openMemoModal(memoId = null) {
   const memo = (state.selectedContext?.memos || []).find((entry) => entry.id === memoId);
   if (!state.selectedContext || (memoId && !memo)) return;
   state.editingMemoId = memoId;
+  state.memoBaselineUpdatedAt = memo?.updated_at || null;
+  state.memoDraftKey = memoDraftStorageKey(state.selectedContext.work_item.id, memoId);
   elements.memoForm.reset();
   elements.memoForm.elements.namedItem("kind").value = "general";
   if (memo) {
@@ -1636,6 +1739,19 @@ function openMemoModal(memoId = null) {
   } else {
     document.querySelector("#memo-modal-title").textContent = "새 메모";
   }
+  state.memoBaseline = memoFormSignature();
+  hideMemoDraftStatus();
+  const draft = readMemoDraft();
+  if (draft?.version === 1 && draft.values) {
+    if (draft.baseUpdatedAt === state.memoBaselineUpdatedAt) {
+      applyMemoFormValues(draft.values);
+      if (memoHasUnsavedChanges()) showMemoDraftStatus("임시 저장본 복원됨", true);
+      else removeMemoDraft();
+    } else {
+      removeMemoDraft();
+      showMemoDraftStatus("오래된 임시 저장본 정리됨", true);
+    }
+  }
   elements.memoFormError.classList.add("hidden");
   elements.memoFormError.textContent = "";
   updateMemoPreview();
@@ -1645,9 +1761,49 @@ function openMemoModal(memoId = null) {
 }
 
 function closeMemoModal() {
+  if (state.memoDraftTimer) window.clearTimeout(state.memoDraftTimer);
+  state.memoDraftTimer = null;
+  elements.memoCloseModal.classList.add("hidden");
   elements.memoModal.classList.add("hidden");
   document.body.style.overflow = "";
   state.editingMemoId = null;
+  state.memoBaseline = null;
+  state.memoBaselineUpdatedAt = null;
+  state.memoDraftKey = null;
+  state.memoLastFocus = null;
+  hideMemoDraftStatus();
+}
+
+function requestCloseMemoModal() {
+  if (elements.submitMemo.disabled || !elements.memoCloseModal.classList.contains("hidden")) return;
+  if (!memoHasUnsavedChanges()) {
+    removeMemoDraft();
+    closeMemoModal();
+    return;
+  }
+  persistMemoDraft();
+  state.memoLastFocus = document.activeElement;
+  elements.memoCloseModal.classList.remove("hidden");
+  document.querySelector("#continue-memo-editing").focus();
+}
+
+function continueMemoEditing() {
+  elements.memoCloseModal.classList.add("hidden");
+  (state.memoLastFocus instanceof HTMLElement ? state.memoLastFocus : elements.memoForm.elements.namedItem("title"))?.focus();
+  state.memoLastFocus = null;
+}
+
+function keepMemoDraftAndClose() {
+  if (!persistMemoDraft()) {
+    window.alert("브라우저에 임시 저장하지 못했습니다. 변경사항을 버리거나 계속 작성해 주세요.");
+    return;
+  }
+  closeMemoModal();
+}
+
+function discardMemoChangesAndClose() {
+  removeMemoDraft();
+  closeMemoModal();
 }
 
 async function submitMemo(event) {
@@ -1668,6 +1824,7 @@ async function submitMemo(event) {
     await api(state.editingMemoId ? `${base}/${encodeURIComponent(state.editingMemoId)}` : base, {
       method: state.editingMemoId ? "PATCH" : "POST", body: JSON.stringify(payload),
     });
+    removeMemoDraft();
     closeMemoModal();
     await refreshSelectedDetail();
   } catch (error) {
@@ -1814,9 +1971,14 @@ elements.editForm.addEventListener("submit", submitEdit);
 document.querySelector("#close-edit-modal").addEventListener("click", closeEditModal);
 document.querySelector("#cancel-edit").addEventListener("click", closeEditModal);
 document.querySelector("#cancel-delete").addEventListener("click", closeDeleteModal);
-document.querySelector("#close-memo-modal").addEventListener("click", closeMemoModal);
-document.querySelector("#cancel-memo").addEventListener("click", closeMemoModal);
+document.querySelector("#close-memo-modal").addEventListener("click", requestCloseMemoModal);
+document.querySelector("#cancel-memo").addEventListener("click", requestCloseMemoModal);
+document.querySelector("#continue-memo-editing").addEventListener("click", continueMemoEditing);
+document.querySelector("#discard-memo-changes").addEventListener("click", discardMemoChangesAndClose);
+document.querySelector("#keep-memo-draft").addEventListener("click", keepMemoDraftAndClose);
 elements.memoForm.addEventListener("submit", submitMemo);
+elements.memoForm.addEventListener("input", scheduleMemoDraftSave);
+elements.memoForm.addEventListener("change", scheduleMemoDraftSave);
 elements.memoForm.elements.namedItem("content").addEventListener("input", updateMemoPreview);
 elements.memoForm.elements.namedItem("content").addEventListener("keydown", (event) => {
   const textarea = event.currentTarget;
@@ -1846,13 +2008,15 @@ elements.confirmDelete.addEventListener("click", deleteSelectedItem);
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeModal(); });
 elements.editModal.addEventListener("click", (event) => { if (event.target === elements.editModal) closeEditModal(); });
 elements.deleteModal.addEventListener("click", (event) => { if (event.target === elements.deleteModal) closeDeleteModal(); });
-elements.memoModal.addEventListener("click", (event) => { if (event.target === elements.memoModal) closeMemoModal(); });
+elements.memoModal.addEventListener("click", (event) => { if (event.target === elements.memoModal) requestCloseMemoModal(); });
+elements.memoCloseModal.addEventListener("click", (event) => { if (event.target === elements.memoCloseModal) continueMemoEditing(); });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (!elements.deleteModal.classList.contains("hidden")) closeDeleteModal();
+  if (!elements.memoCloseModal.classList.contains("hidden")) continueMemoEditing();
+  else if (!elements.deleteModal.classList.contains("hidden")) closeDeleteModal();
   else if (!elements.editModal.classList.contains("hidden")) closeEditModal();
   else if (!elements.modal.classList.contains("hidden")) closeModal();
-  else if (!elements.memoModal.classList.contains("hidden")) closeMemoModal();
+  else if (!elements.memoModal.classList.contains("hidden")) requestCloseMemoModal();
 });
 
 buildRunsStatusFilters();
