@@ -44,6 +44,7 @@ class ControlCenterApiTests(unittest.TestCase):
             response.text,
         )
         self.assertNotIn(">Evidence</a>", response.text)
+        self.assertNotIn(">Memory Candidates</a>", response.text)
 
     def test_overview_api_returns_features_work_items_runs_and_links(self) -> None:
         feature = state_store.create_feature(
