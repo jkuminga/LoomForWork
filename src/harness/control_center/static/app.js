@@ -29,6 +29,8 @@ const RUN_STATUS_OPTIONS = [
   ["interrupted", "Interrupted"], ["cancelled", "Cancelled"],
 ];
 const SIDEBAR_STORAGE_KEY = "harness:sidebar-collapsed:v1";
+const FONT_SCALE_STORAGE_KEY = "harness:font-scale:v1";
+const FONT_SCALE_LEVELS = [50, 75, 100, 125, 150];
 
 const state = {
   items: [],
@@ -73,6 +75,7 @@ const state = {
   overviewDragging: null,
   overviewCanvas: { width: 1400, height: 760 },
   sidebarCollapsed: false,
+  fontScale: 100,
 };
 
 const elements = {
@@ -114,6 +117,9 @@ const elements = {
   runsRange: document.querySelector("#runs-range"),
   sideNav: document.querySelector("#primary-sidebar"),
   sidebarToggle: document.querySelector("#sidebar-toggle"),
+  fontScaleDecrease: document.querySelector("#font-scale-decrease"),
+  fontScaleIncrease: document.querySelector("#font-scale-increase"),
+  fontScaleValue: document.querySelector("#font-scale-value"),
 };
 
 function readSidebarPreference() {
@@ -136,8 +142,43 @@ function setSidebarCollapsed(collapsed, persist = true) {
   try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed)); } catch (_) { /* unavailable storage */ }
 }
 
+function readFontScalePreference() {
+  try {
+    const value = Number.parseInt(window.localStorage.getItem(FONT_SCALE_STORAGE_KEY), 10);
+    return FONT_SCALE_LEVELS.includes(value) ? value : 100;
+  } catch (_) {
+    return 100;
+  }
+}
 
+function setFontScale(percent, persist = true, direction = null) {
+  const next = FONT_SCALE_LEVELS.includes(percent) ? percent : 100;
+  state.fontScale = next;
+  document.documentElement.dataset.fontScale = String(next);
+  document.documentElement.style.setProperty("--font-scale", String(next / 100));
+  elements.fontScaleValue.value = `${next}%`;
+  elements.fontScaleValue.textContent = `${next}%`;
 
+  const index = FONT_SCALE_LEVELS.indexOf(next);
+  elements.fontScaleDecrease.disabled = index === 0;
+  elements.fontScaleIncrease.disabled = index === FONT_SCALE_LEVELS.length - 1;
+
+  if (direction) {
+    elements.fontScaleValue.classList.remove("is-increasing", "is-decreasing");
+    void elements.fontScaleValue.offsetWidth;
+    elements.fontScaleValue.classList.add(direction > 0 ? "is-increasing" : "is-decreasing");
+  }
+
+  if (!persist) return;
+  try { window.localStorage.setItem(FONT_SCALE_STORAGE_KEY, String(next)); } catch (_) { /* unavailable storage */ }
+}
+
+function changeFontScale(direction) {
+  const index = FONT_SCALE_LEVELS.indexOf(state.fontScale);
+  const nextIndex = Math.max(0, Math.min(FONT_SCALE_LEVELS.length - 1, index + direction));
+  if (nextIndex === index) return;
+  setFontScale(FONT_SCALE_LEVELS[nextIndex], true, direction);
+}
 
 function statusOf(item) {
   return item.is_draft ? "draft" : item.status;
@@ -1994,6 +2035,11 @@ document.querySelector("#clear-filters").addEventListener("click", () => {
   renderItems();
 });
 elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!state.sidebarCollapsed));
+elements.fontScaleDecrease.addEventListener("click", () => changeFontScale(-1));
+elements.fontScaleIncrease.addEventListener("click", () => changeFontScale(1));
+elements.fontScaleValue.addEventListener("animationend", () => {
+  elements.fontScaleValue.classList.remove("is-increasing", "is-decreasing");
+});
 elements.form.addEventListener("submit", submitDraft);
 elements.editForm.addEventListener("submit", submitEdit);
 document.querySelector("#close-edit-modal").addEventListener("click", closeEditModal);
@@ -2048,5 +2094,6 @@ document.addEventListener("keydown", (event) => {
 });
 
 setSidebarCollapsed(readSidebarPreference(), false);
+setFontScale(readFontScalePreference(), false);
 buildRunsStatusFilters();
 loadItems();

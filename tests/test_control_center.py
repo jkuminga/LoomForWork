@@ -47,6 +47,9 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertNotIn(">Memory Candidates</a>", response.text)
         self.assertIn('id="sidebar-toggle"', response.text)
         self.assertIn('aria-controls="primary-sidebar"', response.text)
+        self.assertIn('id="font-scale-decrease"', response.text)
+        self.assertIn('id="font-scale-value"', response.text)
+        self.assertIn('id="font-scale-increase"', response.text)
 
     def test_sidebar_toggle_uses_a_persisted_desktop_icon_rail(self) -> None:
         root = Path(__file__).parents[1] / "src/harness/control_center/static"
@@ -60,6 +63,20 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertIn("body.sidebar-collapsed .nav-list a", styles)
         self.assertIn(".sidebar-toggle {", styles)
 
+    def test_font_scale_stepper_uses_five_persisted_levels(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        styles = (root / "styles.css").read_text()
+
+        self.assertIn('const FONT_SCALE_STORAGE_KEY = "harness:font-scale:v1"', app_js)
+        self.assertIn("const FONT_SCALE_LEVELS = [50, 75, 100, 125, 150]", app_js)
+        self.assertIn("function setFontScale(percent, persist = true, direction = null)", app_js)
+        self.assertIn('document.documentElement.style.setProperty("--font-scale"', app_js)
+        self.assertIn("window.localStorage.setItem(FONT_SCALE_STORAGE_KEY, String(next))", app_js)
+        self.assertIn("--font-scale: 1", styles)
+        self.assertIn(".font-scale-stepper", styles)
+        self.assertIn("body.sidebar-collapsed .font-scale-control", styles)
+        self.assertIn('html[data-font-scale="150"] .criterion-controls', styles)
 
     def test_overview_api_returns_features_work_items_runs_and_links(self) -> None:
         feature = state_store.create_feature(
