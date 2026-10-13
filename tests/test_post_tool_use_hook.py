@@ -241,6 +241,52 @@ class StartWorkPostToolUseHookTests(unittest.TestCase):
             [],
         )
 
+    def test_harness_mcp_tools_are_excluded_but_external_mcp_is_recorded(self) -> None:
+        database_path, run = self.active_run()
+        tool_names = (
+            "mcp__harness_state__get_postflight_status",
+            "mcp__harness_memory__finalize_memory_candidate",
+            "mcp__harness_state__future_tool",
+        )
+        for index, tool_name in enumerate(tool_names):
+            with self.subTest(tool_name=tool_name):
+                event = {
+                    "session_id": "session-1",
+                    "turn_id": "turn-7",
+                    "tool_use_id": f"harness-{index}",
+                    "tool_name": tool_name,
+                    "tool_input": {"id": "example"},
+                    "tool_response": {"isError": False, "content": []},
+                }
+                self.assertIsNone(
+                    post_tool_use.dispatch_post_tool_use(
+                        event,
+                        database_path=database_path,
+                        bindings_directory=self.bindings_directory,
+                    )
+                )
+
+        external_event = {
+            "session_id": "session-1",
+            "turn_id": "turn-7",
+            "tool_use_id": "external-1",
+            "tool_name": "mcp__external__create_issue",
+            "tool_input": {"title": "Example"},
+            "tool_response": {"isError": False, "content": []},
+        }
+        self.assertIsNone(
+            post_tool_use.dispatch_post_tool_use(
+                external_event,
+                database_path=database_path,
+                bindings_directory=self.bindings_directory,
+            )
+        )
+        saved = state_store.list_run_tool_events(
+            run["id"], database_path=database_path
+        )
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(saved[0]["tool_name"], "mcp__external__create_issue")
+
     def test_project_hook_registers_one_matcherless_post_tool_use_entry(self) -> None:
         hooks_path = Path(__file__).resolve().parents[1] / ".codex" / "hooks.json"
         hooks = json.loads(hooks_path.read_text(encoding="utf-8"))["hooks"]

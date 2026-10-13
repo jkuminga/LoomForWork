@@ -18,6 +18,7 @@ from .. import runtime_binding, state_store
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 START_WORK_TOOL = "mcp__harness_state__start_work"
 FINISH_WORK_TOOL = "mcp__harness_state__finish_work"
+HARNESS_MCP_TOOL_PREFIXES = ("mcp__harness_state__", "mcp__harness_memory__")
 DEFAULT_RECALL_LIMIT = 5
 DEFAULT_RECALL_TIMEOUT_SECONDS = 15
 MAX_INPUT_SUMMARY_LENGTH = 512
@@ -410,7 +411,7 @@ def record_general_tool_event(
     if not isinstance(tool_name, str) or not tool_name.strip():
         return None
     tool_name = tool_name.strip()
-    if tool_name in {START_WORK_TOOL, FINISH_WORK_TOOL}:
+    if tool_name.lower().startswith(HARNESS_MCP_TOOL_PREFIXES):
         return None
     if is_trivial_read_command(tool_name, event.get("tool_input")):
         return None

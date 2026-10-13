@@ -45,3 +45,7 @@
 - Codex는 Run 종료 과정에서 WorkItem을 `done`으로 바꾸지 않는다. 성공한 Run은 `$work-finish`로 종료하고 WI를 `ready`로 돌린다.
 - WI는 사용자가 웹 콘솔에서 완료하거나 `w/`로 선택한 WI의 완료를 명시적으로 요청한 경우에만 닫는다. 명시적 완료 요청은 `$work-start`의 완료 분기로 처리하며 새 Run을 만들지 않는다.
 - 최종 응답에서는 이번 Run의 성공과 WI의 최종 `done` 상태를 구분한다.
+
+## Harness MCP 도구 추가
+
+- `harness-state` 또는 `harness-memory` 서버에 MCP 도구를 추가할 때, 그 도구를 PostToolUse의 `run_tool_events` 기록에서 제외해도 되는지 검토하고 판단과 이유를 사용자에게 보고한다. 실제 프로젝트 작업 결과를 만드는 도구라면 서버 단위 제외 규칙을 조정할 필요도 함께 보고한다.
