@@ -63,14 +63,11 @@ def dispatch_stop(
         return None
 
     try:
-        active = runtime_binding.validate_active_binding(
+        runtime_binding.validate_active_binding(
             session_id=session_id,
             current_turn_id=turn_id,
             database_path=database_path,
             bindings_directory=bindings_directory,
-        )
-        pending_candidates = state_store.list_pending_candidates(
-            run_id=active["active_run"]["id"], database_path=database_path
         )
     except (runtime_binding.RuntimeBindingError, state_store.StateStoreError) as error:
         return _warning(
@@ -82,21 +79,13 @@ def dispatch_stop(
 
     if event.get("stop_hook_active") is True:
         return _warning(
-            "한 차례 마감 재시도 후에도 활성 Run이 남아 있습니다. "
-            f"pending Memory Candidate: {len(pending_candidates)}개."
+            "한 차례 마감 재시도 후에도 활성 Run이 남아 있습니다."
         )
 
-    if pending_candidates:
-        reason = (
-            "활성 Run에 pending Memory Candidate가 남아 있습니다. "
-            "$work-finish를 실행해 후보를 검토·저장하고 Run을 종료하세요."
-        )
-    else:
-        reason = (
-            "활성 Run이 아직 마감되지 않았습니다. "
-            "$work-finish를 실행해 Run을 종료하세요."
-        )
-    return {"decision": "block", "reason": reason}
+    return {
+        "decision": "block",
+        "reason": "활성 Run이 아직 마감되지 않았습니다. $work-finish를 실행해 Run을 종료하세요.",
+    }
 
 
 def main() -> int:

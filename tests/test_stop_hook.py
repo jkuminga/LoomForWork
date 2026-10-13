@@ -82,7 +82,7 @@ class StopHookTests(unittest.TestCase):
         self.assertIn("$work-finish", result["reason"])
         self.assertNotIn("pending Memory Candidate", result["reason"])
 
-    def test_pending_candidate_requests_memory_closeout(self) -> None:
+    def test_pending_candidate_does_not_change_run_closeout_request(self) -> None:
         _work_item, run = self.start_bound_run()
         state_store.create_candidate(
             run["id"],
@@ -96,7 +96,8 @@ class StopHookTests(unittest.TestCase):
         result = self.dispatch(self.event())
 
         self.assertEqual(result["decision"], "block")
-        self.assertIn("pending Memory Candidate", result["reason"])
+        self.assertIn("$work-finish", result["reason"])
+        self.assertNotIn("pending Memory Candidate", result["reason"])
 
     def test_second_stop_warns_without_blocking_again(self) -> None:
         self.start_bound_run()

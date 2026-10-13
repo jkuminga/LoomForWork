@@ -1003,11 +1003,11 @@ class StateStoreLifecycleTests(unittest.TestCase):
             "in_progress",
         )
 
-    def test_pending_memory_candidate_prevents_finishing_a_run(self) -> None:
+    def test_pending_memory_candidate_remains_after_finishing_a_run(self) -> None:
         work_item = state_store.create_work_item(
-            title="기억 후보 선행 처리",
+            title="기억 후보와 Run 종료 분리",
             kind="implementation",
-            goal="기억 후보를 처리하기 전에는 Run을 닫지 않는다.",
+            goal="기억 후보가 남아 있어도 Run을 닫는다.",
             next_action="기억 후보를 만든다.",
             actor="planner",
             database_path=self.database_path,
@@ -1026,35 +1026,32 @@ class StateStoreLifecycleTests(unittest.TestCase):
         state_store.create_candidate(
             run["id"],
             proposed_type="general",
-            title="후보를 먼저 처리한다",
-            content="Run 종료 전에 pending 후보를 확정한다.",
+            title="나중에 처리할 후보",
+            content="Run 종료 후에도 pending 후보를 보존한다.",
             keywords=["finish", "pending"],
             database_path=self.database_path,
         )
 
-        with self.assertRaisesRegex(
-            state_store.ConflictError, "pending Memory Candidates"
-        ):
-            state_store.finish_run(
-                run["id"],
-                run_status="succeeded",
-                work_item_status="ready",
-                summary="후보를 남긴 채 종료를 시도한다.",
-                next_action="후보를 처리한다.",
-                actor="codex",
-                reason="안전장치 검증",
-                database_path=self.database_path,
-            )
+        state_store.finish_run(
+            run["id"],
+            run_status="succeeded",
+            work_item_status="ready",
+            summary="후보를 남긴 채 Run을 종료한다.",
+            next_action="다음 작업을 진행한다.",
+            actor="codex",
+            reason="장기 기억 후보는 종료를 막지 않는다.",
+            database_path=self.database_path,
+        )
 
         self.assertEqual(
             state_store.get_run(run["id"], database_path=self.database_path)["status"],
-            "running",
+            "succeeded",
         )
         self.assertEqual(
             state_store.get_work_item(
                 work_item["id"], database_path=self.database_path
             )["status"],
-            "in_progress",
+            "ready",
         )
         self.assertEqual(
             len(
