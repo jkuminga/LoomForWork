@@ -28,6 +28,7 @@ const RUN_STATUS_OPTIONS = [
   ["running", "Running"], ["succeeded", "Succeeded"], ["failed", "Failed"],
   ["interrupted", "Interrupted"], ["cancelled", "Cancelled"],
 ];
+const SIDEBAR_STORAGE_KEY = "harness:sidebar-collapsed:v1";
 
 const state = {
   items: [],
@@ -71,6 +72,7 @@ const state = {
   overviewSpread: false,
   overviewDragging: null,
   overviewCanvas: { width: 1400, height: 760 },
+  sidebarCollapsed: false,
 };
 
 const elements = {
@@ -110,7 +112,32 @@ const elements = {
   runsLoading: document.querySelector("#runs-loading"),
   runsEmpty: document.querySelector("#runs-empty"),
   runsRange: document.querySelector("#runs-range"),
+  sideNav: document.querySelector("#primary-sidebar"),
+  sidebarToggle: document.querySelector("#sidebar-toggle"),
 };
+
+function readSidebarPreference() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch (_) {
+    return false;
+  }
+}
+
+function setSidebarCollapsed(collapsed, persist = true) {
+  state.sidebarCollapsed = collapsed;
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  elements.sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+  const label = collapsed ? "사이드바 펼치기" : "사이드바 접기";
+  elements.sidebarToggle.setAttribute("aria-label", label);
+  elements.sidebarToggle.title = label;
+  elements.sidebarToggle.querySelector("span").textContent = collapsed ? "›" : "‹";
+  if (!persist) return;
+  try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed)); } catch (_) { /* unavailable storage */ }
+}
+
+
+
 
 function statusOf(item) {
   return item.is_draft ? "draft" : item.status;
@@ -1966,6 +1993,7 @@ document.querySelector("#clear-filters").addEventListener("click", () => {
   buildFilters("#kind-filters", "kind", KIND_OPTIONS);
   renderItems();
 });
+elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!state.sidebarCollapsed));
 elements.form.addEventListener("submit", submitDraft);
 elements.editForm.addEventListener("submit", submitEdit);
 document.querySelector("#close-edit-modal").addEventListener("click", closeEditModal);
@@ -2019,5 +2047,6 @@ document.addEventListener("keydown", (event) => {
   else if (!elements.memoModal.classList.contains("hidden")) requestCloseMemoModal();
 });
 
+setSidebarCollapsed(readSidebarPreference(), false);
 buildRunsStatusFilters();
 loadItems();

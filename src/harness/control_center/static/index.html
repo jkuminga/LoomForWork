@@ -16,30 +16,35 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="side-nav" aria-label="주 메뉴">
+      <aside class="side-nav" id="primary-sidebar" aria-label="주 메뉴">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">H</div>
-          <div>
+          <div class="brand-copy">
             <strong>Harness_v2</strong>
             <span>AI Orchestration Workspace</span>
           </div>
         </div>
 
         <nav class="nav-list">
-          <a id="nav-overview" href="#overview"><span>◫</span>Overview</a>
-          <a href="#" aria-disabled="true"><span>◇</span>Features</a>
-          <a class="active" id="nav-work-items" href="#work-items" aria-current="page"><span>≡</span>Work Items</a>
-          <a id="nav-runs" href="#runs"><span>▷</span>Runs</a>
-          <a href="#" aria-disabled="true"><span>⌘</span>MemoryGraph</a>
-          <a href="#" aria-disabled="true"><span>◷</span>Activity Timeline</a>
+          <a id="nav-overview" href="#overview" aria-label="Overview" title="Overview"><span>◫</span>Overview</a>
+          <a href="#" aria-label="Features" title="Features" aria-disabled="true"><span>◇</span>Features</a>
+          <a class="active" id="nav-work-items" href="#work-items" aria-label="Work Items" title="Work Items" aria-current="page"><span>≡</span>Work Items</a>
+          <a id="nav-runs" href="#runs" aria-label="Runs" title="Runs"><span>▷</span>Runs</a>
+          <a href="#" aria-label="MemoryGraph" title="MemoryGraph" aria-disabled="true"><span>⌘</span>MemoryGraph</a>
+          <a href="#" aria-label="Activity Timeline" title="Activity Timeline" aria-disabled="true"><span>◷</span>Activity Timeline</a>
         </nav>
 
-        <div class="nav-footer">
-          <div class="health-row">
-            <span class="health-dot" id="health-dot"></span>
-            <span id="health-label">State DB 확인 중</span>
+        <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-controls="primary-sidebar" aria-expanded="true" aria-label="사이드바 접기" title="사이드바 접기"><span aria-hidden="true">‹</span></button>
+
+        <div class="sidebar-bottom">
+
+          <div class="nav-footer">
+            <div class="health-row">
+              <span class="health-dot" id="health-dot"></span>
+              <span id="health-label">State DB 확인 중</span>
+            </div>
+            <div class="workspace-label">LOCAL WORKSPACE</div>
           </div>
-          <div class="workspace-label">LOCAL WORKSPACE</div>
         </div>
       </aside>
 

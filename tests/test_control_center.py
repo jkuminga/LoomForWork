@@ -45,6 +45,21 @@ class ControlCenterApiTests(unittest.TestCase):
         )
         self.assertNotIn(">Evidence</a>", response.text)
         self.assertNotIn(">Memory Candidates</a>", response.text)
+        self.assertIn('id="sidebar-toggle"', response.text)
+        self.assertIn('aria-controls="primary-sidebar"', response.text)
+
+    def test_sidebar_toggle_uses_a_persisted_desktop_icon_rail(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        app_js = (root / "app.js").read_text()
+        styles = (root / "styles.css").read_text()
+
+        self.assertIn('const SIDEBAR_STORAGE_KEY = "harness:sidebar-collapsed:v1"', app_js)
+        self.assertIn("function setSidebarCollapsed(collapsed, persist = true)", app_js)
+        self.assertIn('window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed))', app_js)
+        self.assertIn("body.sidebar-collapsed .side-nav", styles)
+        self.assertIn("body.sidebar-collapsed .nav-list a", styles)
+        self.assertIn(".sidebar-toggle {", styles)
+
 
     def test_overview_api_returns_features_work_items_runs_and_links(self) -> None:
         feature = state_store.create_feature(
