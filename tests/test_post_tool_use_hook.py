@@ -124,7 +124,7 @@ class StartWorkPostToolUseHookTests(unittest.TestCase):
             [saved],
         )
 
-    def test_trivial_navigation_and_status_commands_are_not_saved(self) -> None:
+    def test_navigation_and_status_commands_are_saved_for_model_review(self) -> None:
         database_path, run = self.active_run()
         commands = ["pwd", "ls -la", "cd src", "git status --short"]
 
@@ -138,7 +138,7 @@ class StartWorkPostToolUseHookTests(unittest.TestCase):
                     "tool_input": {"cmd": command},
                     "tool_response": {"exit_code": 0, "output": "noise"},
                 }
-                self.assertIsNone(
+                self.assertIsNotNone(
                     post_tool_use.record_general_tool_event(
                         event,
                         database_path=database_path,
@@ -146,12 +146,9 @@ class StartWorkPostToolUseHookTests(unittest.TestCase):
                     )
                 )
 
-        self.assertEqual(
-            state_store.list_run_tool_events(
-                run["id"], database_path=database_path
-            ),
-            [],
-        )
+        rows = state_store.list_run_tool_events(run["id"], database_path=database_path)
+        self.assertEqual([row["run_seq"] for row in rows], [1, 2, 3, 4])
+        self.assertEqual([row["input_summary"] for row in rows], [f"cmd={command}" for command in commands])
 
     def test_compound_navigation_command_is_kept_for_review(self) -> None:
         database_path, run = self.active_run()

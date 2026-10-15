@@ -77,7 +77,18 @@ description: 사용자 요청을 기존 WorkItem에 연결하거나 새 WorkItem
 
 새 WorkItem에는 짧은 `title`, 결과 중심의 `goal`, 작업 `kind`, 바로 수행할 `next_action`, 4단계 `priority`, 구체적인 명령에 종속되지 않은 Acceptance Criteria를 넣는다. 명확히 속하는 기존 Feature가 있을 때만 연결한다. 생성 후 `ready`로 바꾼다.
 
-## 6. Run 시작
+## 6. 과거 도구 기록 복구
+
+선택한 WI의 `get_work_context()`를 읽은 뒤, 새 Run 이전에 `list_runs_with_unreviewed_tool_events(work_item_id)`를 호출한다. `reviewed_at`(도구 기록의 마감 완료 시각)이 비어 있는 과거 Run만 복구한다. UPS의 stale Run 정리는 재현하지 않는다.
+
+- 각 Run에 `recover_review_plan(work_item_id, run_id)`을 호출한다. 정상 Review Plan JSON이 있으면 도구가 이미 저장된 Artifact·Evidence를 재사용하고 누락분만 적용하며, 완료된 EVT(도구 사용 기록)의 요약을 제거한다.
+- JSON이 없거나 손상됐으면 `get_run_review_context(run_id)`의 EVT·Artifact·Evidence·AC(완료 조건)와 현재 대화 맥락을 비교한다. 저장된 Artifact가 없는 것만으로 제외 대상이었다고 추측하지 않는다. 확신한 항목만 `apply_unplanned_review_recovery(work_item_id, run_id, decisions)`에 전달한다. `decisions`는 `save_review_plan`의 이벤트 판단 형식을 따른다. 손상된 JSON은 그대로 보존한다.
+- 필요한 A/E 저장 또는 검토 완료 처리에 수정 가능한 오류가 있으면 원인을 고친 뒤 누락분만 최대 1회 재시도한다. 과거 도구 실행을 재현하거나 추가 복구 Run을 만들지 않는다.
+- 미검토 항목이 남으면 Run·EVT ID와 실패 이유를 알리고 새 `start_work()`를 호출하지 않는다. 맥락 부족으로 판단 불가능한 경우에는 해당 EVT의 폐기 여부를 묻는다. 명시 승인 없는 폐기는 수행하지 않으며, 구체적인 폐기 도구와 재개 구조는 후속 WI `WI-039899c092c9`의 범위다.
+
+복구에는 위 MCP 도구만 사용한다. 종료된 Run에 쓰는 내부 DB 함수는 직접 호출하지 않는다. 모든 대상 Run의 미검토 기록이 처리되면 다음 단계로 간다.
+
+## 7. Run 시작
 
 1. 선택한 항목에 `get_work_context(work_item_id)`를 호출한다.
 2. `goal`, `next_action`, Acceptance Criteria, 최근 Run, 활성 상태를 확인하고 낡은 계획만 필요한 범위에서 정리한다.

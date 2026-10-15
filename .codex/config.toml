@@ -28,6 +28,16 @@ enabled_tools = [
   "recover_abandoned_work",
   "create_memory_candidate",
   "list_memory_candidates",
+  "list_run_tool_events",
+  "save_review_plan",
+  "get_review_plan",
+  "finalize_review_plan",
+  "get_run_review_status",
+  "delete_review_plan",
+  "list_runs_with_unreviewed_tool_events",
+  "get_run_review_context",
+  "recover_review_plan",
+  "apply_unplanned_review_recovery"
 ]
 
 [mcp_servers.harness-memory]

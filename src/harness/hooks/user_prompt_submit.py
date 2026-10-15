@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
-from .. import runtime_binding, state_store, work_item_picker
+from .. import review_plans, runtime_binding, state_store, work_item_picker
 from . import ups_recovery
 
 
@@ -479,6 +479,8 @@ def dispatch_user_prompt_submit(
                     request=request_text,
                 )
             )
+        cleanup = review_plans.cleanup_orphan_review_plans(database_path=database_path)
+        recovery.warnings.extend(cleanup["warnings"])
         selections_directory = _selection_directory(database_path)
         cleanup_expired_selection_files(selections_directory)
         request_path = write_selection_request(

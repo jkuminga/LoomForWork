@@ -64,9 +64,6 @@ _RUN_TOOL_EVENT_FAMILIES = frozenset(
     {"bash", "file_edit", "mcp", "lifecycle", "other"}
 )
 _RUN_TOOL_EVENT_STATUSES = frozenset({"succeeded", "failed", "unknown"})
-_RUN_TOOL_EVENT_REVIEW_STATUSES = frozenset(
-    {"pending", "promoted", "ignored", "error"}
-)
 _RUN_STATUSES = frozenset(
     {"running", "succeeded", "failed", "interrupted", "cancelled"}
 )
@@ -180,6 +177,14 @@ def initialize_database(
         # cannot make the new source_event_id index fail during schema loading.
         _migrate_run_tool_events(database)
         _migrate_artifacts(database)
+        # One source EVT can produce at most one Artifact, regardless of kind.
+        artifacts_exist = database.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'artifacts'").fetchone()
+        if artifacts_exist and database.execute(
+            "SELECT 1 FROM artifacts WHERE source_event_id IS NOT NULL "
+            "GROUP BY run_id, source_event_id HAVING COUNT(*) > 1 LIMIT 1"
+        ).fetchone():
+            raise ConflictError("duplicate legacy Artifact source events require explicit reconciliation")
+        database.execute("DROP INDEX IF EXISTS artifacts_source_event_idx")
         database.executescript(Path(schema_path).read_text())
         _migrate_work_item_draft_fields(database)
         _migrate_run_recall_fields(database)
@@ -195,14 +200,18 @@ def initialize_database(
 
 
 def _migrate_run_tool_events(database: sqlite3.Connection) -> None:
-    """Create the compact PostToolUse event table for older state databases."""
+    """Preserve EVT IDs and links while introducing ordered review snapshots.
 
-    database.execute(
-        """
-        CREATE TABLE IF NOT EXISTS run_tool_events (
+    Legacy review_status is not proof that Evidence/AC processing completed;
+    migrate every legacy row as unreviewed, preserving its summaries.
+    """
+
+    table_sql = """
+        CREATE TABLE {table} (
           id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
           tool_use_id TEXT NOT NULL CHECK (length(trim(tool_use_id)) > 0),
           run_id TEXT NOT NULL REFERENCES runs(id),
+          run_seq INTEGER NOT NULL CHECK (run_seq > 0),
           tool_name TEXT NOT NULL CHECK (length(trim(tool_name)) > 0),
           tool_family TEXT NOT NULL CHECK (tool_family IN (
             'bash', 'file_edit', 'mcp', 'lifecycle', 'other'
@@ -211,20 +220,41 @@ def _migrate_run_tool_events(database: sqlite3.Connection) -> None:
           exit_code INTEGER,
           input_summary TEXT NOT NULL CHECK (length(trim(input_summary)) <= 512),
           result_summary TEXT NOT NULL CHECK (length(trim(result_summary)) <= 1024),
-          review_status TEXT NOT NULL DEFAULT 'pending'
-            CHECK (review_status IN ('pending', 'promoted', 'ignored', 'error')),
+          reviewed_at TEXT CHECK (reviewed_at IS NULL OR length(trim(reviewed_at)) > 0),
           created_at TEXT NOT NULL CHECK (length(trim(created_at)) > 0),
-          UNIQUE (run_id, tool_use_id)
+          UNIQUE (run_id, tool_use_id),
+          UNIQUE (run_id, run_seq)
         )
         """
-    )
-    database.execute(
-        """
-        CREATE INDEX IF NOT EXISTS run_tool_events_run_created_at_idx
-          ON run_tool_events(run_id, created_at, id)
-        """
-    )
+    columns = {row["name"] for row in database.execute("PRAGMA table_info(run_tool_events)")}
+    if not columns:
+        database.execute(table_sql.format(table="run_tool_events"))
+        database.commit()
+        return
+    if "run_seq" in columns and "reviewed_at" in columns and "review_status" not in columns:
+        return
     database.commit()
+    enabled = database.execute("PRAGMA foreign_keys").fetchone()[0]
+    database.execute("PRAGMA foreign_keys = OFF")
+    try:
+        database.execute("BEGIN IMMEDIATE")
+        database.execute(table_sql.format(table="run_tool_events_migration_new"))
+        sequence = "run_seq" if "run_seq" in columns else "ROW_NUMBER() OVER (PARTITION BY run_id ORDER BY created_at, id)"
+        reviewed = "reviewed_at" if "reviewed_at" in columns else "NULL"
+        database.execute(f"""
+            INSERT INTO run_tool_events_migration_new
+            SELECT id, tool_use_id, run_id, {sequence}, tool_name, tool_family,
+                   status, exit_code, input_summary, result_summary, {reviewed}, created_at
+            FROM run_tool_events
+        """)
+        database.execute("DROP TABLE run_tool_events")
+        database.execute("ALTER TABLE run_tool_events_migration_new RENAME TO run_tool_events")
+        database.commit()
+    except Exception:
+        database.rollback()
+        raise
+    finally:
+        database.execute(f"PRAGMA foreign_keys = {enabled}")
 
 
 def _migrate_artifacts(database: sqlite3.Connection) -> None:
@@ -1650,7 +1680,6 @@ def record_run_tool_event(
     exit_code: int | None,
     input_summary: str,
     result_summary: str,
-    review_status: str = "pending",
     event_id: str | None = None,
     database_path: str | Path = DEFAULT_DATABASE_PATH,
 ) -> dict[str, Any]:
@@ -1660,8 +1689,6 @@ def record_run_tool_event(
         raise ConflictError(f"unsupported tool family: {tool_family}")
     if status not in _RUN_TOOL_EVENT_STATUSES:
         raise ConflictError(f"unsupported tool event status: {status}")
-    if review_status not in _RUN_TOOL_EVENT_REVIEW_STATUSES:
-        raise ConflictError(f"unsupported review status: {review_status}")
     if not isinstance(tool_use_id, str) or not tool_use_id.strip():
         raise ConflictError("tool_use_id must be non-empty")
     if not isinstance(tool_name, str) or not tool_name.strip():
@@ -1683,24 +1710,33 @@ def record_run_tool_event(
         run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
         if run["status"] != "running":
             raise ConflictError("Tool events must be recorded during a running Run")
+        existing = database.execute(
+            "SELECT * FROM run_tool_events WHERE run_id = ? AND tool_use_id = ?",
+            (run_id, normalized_tool_use_id),
+        ).fetchone()
+        if existing is not None:
+            return dict(existing)
+        run_seq = database.execute(
+            "SELECT COALESCE(MAX(run_seq), 0) + 1 FROM run_tool_events WHERE run_id = ?", (run_id,)
+        ).fetchone()[0]
         database.execute(
             """
             INSERT INTO run_tool_events (
-              id, tool_use_id, run_id, tool_name, tool_family, status,
-              exit_code, input_summary, result_summary, review_status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              id, tool_use_id, run_id, run_seq, tool_name, tool_family, status,
+              exit_code, input_summary, result_summary, reviewed_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
             """,
             (
                 identifier,
                 normalized_tool_use_id,
                 run_id,
+                run_seq,
                 normalized_tool_name,
                 tool_family,
                 status,
                 exit_code,
                 normalized_input,
                 normalized_result,
-                review_status,
                 now,
             ),
         )
@@ -1715,35 +1751,122 @@ def record_run_tool_event(
 def list_run_tool_events(
     run_id: str,
     *,
-    review_status: str | None = None,
+    unreviewed_only: bool = False,
     database_path: str | Path = DEFAULT_DATABASE_PATH,
 ) -> list[dict[str, Any]]:
     """List compact tool events for one Run in execution order."""
 
-    if review_status is not None and review_status not in _RUN_TOOL_EVENT_REVIEW_STATUSES:
-        raise ConflictError(f"unsupported review status: {review_status}")
     database = open_database(database_path)
     try:
         _require_row(database, "SELECT id FROM runs WHERE id = ?", (run_id,), "Run")
-        if review_status is None:
-            rows = database.execute(
-                """
-                SELECT * FROM run_tool_events
-                WHERE run_id = ?
-                ORDER BY created_at, id
-                """,
-                (run_id,),
-            )
-        else:
-            rows = database.execute(
-                """
-                SELECT * FROM run_tool_events
-                WHERE run_id = ? AND review_status = ?
-                ORDER BY created_at, id
-                """,
-                (run_id, review_status),
-            )
+        rows = database.execute(
+            "SELECT * FROM run_tool_events WHERE run_id = ? "
+            + ("AND reviewed_at IS NULL " if unreviewed_only else "")
+            + "ORDER BY run_seq", (run_id,),
+        )
         return [dict(row) for row in rows]
+    finally:
+        database.close()
+
+
+def get_run_tool_event_snapshot(
+    run_id: str, *, unreviewed_only: bool = False,
+    database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> dict[str, Any]:
+    """Return ordered EVT rows and their boundary from one SQLite snapshot."""
+
+    database = open_database(database_path)
+    try:
+        database.execute("BEGIN")
+        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
+        rows = [dict(row) for row in database.execute(
+            "SELECT * FROM run_tool_events WHERE run_id = ? ORDER BY run_seq", (run_id,)
+        )]
+        return {
+            "run_id": run_id, "work_item_id": run["work_item_id"],
+            "snapshot_max_seq": max((row["run_seq"] for row in rows), default=0),
+            "events": [row for row in rows if not unreviewed_only or row["reviewed_at"] is None],
+            "total_count": len(rows),
+        }
+    finally:
+        database.close()
+
+
+def get_run_review_status(run_id: str, *, database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str, Any]:
+    """Small final acknowledgement check, without reprinting tool summaries."""
+
+    snapshot = get_run_tool_event_snapshot(run_id, database_path=database_path)
+    return {
+        "run_id": run_id,
+        "unreviewed_event_ids": [row["id"] for row in snapshot["events"] if row["reviewed_at"] is None],
+        "inconsistent_event_ids": [row["id"] for row in snapshot["events"]
+                                   if row["reviewed_at"] is not None and (row["input_summary"] or row["result_summary"])],
+    }
+
+
+def mark_tool_events_reviewed(
+    run_id: str, event_ids: Sequence[str], *, recovery_work_item_id: str | None = None,
+    database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> dict[str, Any]:
+    """Atomically acknowledge exactly these EVTs and erase both summaries."""
+
+    if isinstance(event_ids, (str, bytes)) or len(set(event_ids)) != len(event_ids):
+        raise ConflictError("event_ids must be a unique list")
+    with _transaction(database_path) as database:
+        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
+        if recovery_work_item_id is not None:
+            _require_recovery_target(database, recovery_work_item_id, run_id)
+        elif run["status"] != "running":
+            raise ConflictError("normal review acknowledgement requires a running Run")
+        for event_id in event_ids:
+            row = _require_row(database, "SELECT * FROM run_tool_events WHERE id = ?", (event_id,), "Run tool event")
+            if row["run_id"] != run_id:
+                raise ConflictError("review EVT belongs to another Run")
+        now = _utc_now()
+        database.executemany(
+            "UPDATE run_tool_events SET reviewed_at = COALESCE(reviewed_at, ?), "
+            "input_summary = '', result_summary = '' WHERE id = ? AND run_id = ?",
+            [(now, event_id, run_id) for event_id in event_ids],
+        )
+    return {"run_id": run_id, "reviewed_event_ids": list(event_ids)}
+
+
+def list_runs_with_unreviewed_tool_events(
+    work_item_id: str, *, database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> list[dict[str, Any]]:
+    """Find only historical Runs of the selected WI that need review recovery."""
+
+    database = open_database(database_path)
+    try:
+        _require_row(database, "SELECT id FROM work_items WHERE id = ?", (work_item_id,), "WorkItem")
+        return [dict(row) for row in database.execute(
+            """SELECT r.*, COUNT(e.id) AS unreviewed_count FROM runs r
+               JOIN run_tool_events e ON e.run_id = r.id AND e.reviewed_at IS NULL
+               WHERE r.work_item_id = ? AND r.status <> 'running'
+               GROUP BY r.id ORDER BY r.started_at, r.id""", (work_item_id,)
+        )]
+    finally:
+        database.close()
+
+
+def get_run_review_context(run_id: str, *, database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str, Any]:
+    """Read historical EVTs, saved results, links and WI criteria consistently."""
+
+    database = open_database(database_path)
+    try:
+        database.execute("BEGIN")
+        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
+        item = _require_row(database, "SELECT * FROM work_items WHERE id = ?", (run["work_item_id"],), "WorkItem")
+        return {
+            "run": run, "work_item": item,
+            "events": [dict(row) for row in database.execute(
+                "SELECT * FROM run_tool_events WHERE run_id = ? ORDER BY run_seq", (run_id,))],
+            "artifacts": [dict(row) for row in database.execute("SELECT * FROM artifacts WHERE run_id = ? ORDER BY id", (run_id,))],
+            "evidence": [dict(row) for row in database.execute(
+                "SELECT e.* FROM criterion_evidence e JOIN artifacts a ON a.id = e.artifact_id WHERE a.run_id = ?", (run_id,))],
+            "acceptance_criteria": [dict(row) for row in database.execute(
+                "SELECT * FROM acceptance_criteria WHERE work_item_id = ? ORDER BY sort_order", (item["id"],))],
+        }
     finally:
         database.close()
 
@@ -1762,6 +1885,24 @@ def create_artifact(
 ) -> dict[str, Any]:
     """Register a verifiable Run result without copying its original content."""
 
+    with _transaction(database_path) as database:
+        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
+        if run["status"] != "running":
+            raise ConflictError("Artifact must be registered during a running Run")
+        return _insert_artifact(
+            database, run_id, kind=kind, uri=uri, source_event_id=source_event_id,
+            verification_status=verification_status, summary=summary, actor=actor,
+            artifact_id=artifact_id,
+        )
+
+
+def _insert_artifact(
+    database: sqlite3.Connection, run_id: str, *, kind: str,
+    uri: str | None, source_event_id: str | None,
+    verification_status: str, summary: str, actor: str, artifact_id: str | None = None,
+) -> dict[str, Any]:
+    """Shared insertion with exact replay detection; caller owns authorization."""
+
     normalized_uri = _validate_artifact_uri(kind, uri)
     if source_event_id is not None and not isinstance(source_event_id, str):
         raise ConflictError("source_event_id must be a string when provided")
@@ -1770,49 +1911,69 @@ def create_artifact(
         raise ConflictError("source_event_id must be non-empty when provided")
     identifier = artifact_id or _generate_id("ART")
     now = _utc_now()
+    if normalized_source_event_id is not None:
+        source_event = _require_row(
+            database, "SELECT * FROM run_tool_events WHERE id = ?",
+            (normalized_source_event_id,), "Run tool event",
+        )
+        if source_event["run_id"] != run_id:
+            raise ConflictError("Artifact source event belongs to another Run")
+        existing = database.execute(
+            "SELECT * FROM artifacts WHERE run_id = ? AND source_event_id = ?",
+            (run_id, normalized_source_event_id),
+        ).fetchone()
+        if existing is not None:
+            expected = (kind, normalized_uri, verification_status, summary)
+            if tuple(existing[key] for key in ("kind", "uri", "verification_status", "summary")) != expected:
+                raise ConflictError("source EVT already has a different Artifact")
+            return dict(existing)
+        if source_event["reviewed_at"] is not None:
+            raise ConflictError("reviewed EVT cannot receive a new Artifact")
+    database.execute(
+        """INSERT INTO artifacts (
+            id, run_id, source_event_id, kind, uri, verification_status, summary, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (identifier, run_id, normalized_source_event_id, kind, normalized_uri,
+         verification_status, summary, now),
+    )
+    _append_state_event(
+        database,
+        entity_type="artifact",
+        entity_id=identifier,
+        event_type="created",
+        actor=actor,
+        to_status=verification_status,
+        run_id=run_id,
+        created_at=now,
+    )
+    return _require_row(database, "SELECT * FROM artifacts WHERE id = ?", (identifier,), "Artifact")
+
+
+def _require_recovery_target(database: sqlite3.Connection, work_item_id: str, run_id: str) -> dict[str, Any]:
+    """Limit recovery to historical Runs of a selectable non-active WI."""
+
+    run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
+    item = _require_row(database, "SELECT * FROM work_items WHERE id = ?", (work_item_id,), "WorkItem")
+    if run["work_item_id"] != work_item_id or run["status"] == "running":
+        raise ConflictError("recovery requires a finished Run belonging to the selected WorkItem")
+    if item["status"] != "ready":
+        raise ConflictError("recovery requires a ready WorkItem before its next Run")
+    _require_no_running_run(database, work_item_id)
+    return run
+
+
+def record_artifact_for_recovery(
+    work_item_id: str, run_id: str, *, source_event_id: str, kind: str,
+    verification_status: str, summary: str, uri: str | None = None,
+    actor: str = "codex", database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> dict[str, Any]:
+    """Internal historical-Run writer; never exposed as a generic MCP tool."""
+
     with _transaction(database_path) as database:
-        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (run_id,), "Run")
-        if run["status"] != "running":
-            raise ConflictError("Artifact must be registered during a running Run")
-        if normalized_source_event_id is not None:
-            source_event = _require_row(
-                database,
-                "SELECT id, run_id FROM run_tool_events WHERE id = ?",
-                (normalized_source_event_id,),
-                "Run tool event",
-            )
-            if source_event["run_id"] != run_id:
-                raise ConflictError("Artifact source event belongs to another Run")
-        database.execute(
-            """
-            INSERT INTO artifacts (
-              id, run_id, source_event_id, kind, uri,
-              verification_status, summary, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                identifier,
-                run_id,
-                normalized_source_event_id,
-                kind,
-                normalized_uri,
-                verification_status,
-                summary,
-                now,
-            ),
-        )
-        _append_state_event(
-            database,
-            entity_type="artifact",
-            entity_id=identifier,
-            event_type="created",
-            actor=actor,
-            to_status=verification_status,
-            run_id=run_id,
-            created_at=now,
-        )
-        return _require_row(
-            database, "SELECT * FROM artifacts WHERE id = ?", (identifier,), "Artifact"
+        _require_recovery_target(database, work_item_id, run_id)
+        return _insert_artifact(
+            database, run_id, source_event_id=source_event_id, kind=kind, uri=uri,
+            verification_status=verification_status, summary=summary, actor=actor,
         )
 
 
@@ -1919,6 +2080,56 @@ def link_evidence(
             "artifact_id": artifact_id,
             "note": note,
             "created_at": now,
+        }
+
+
+def verify_criterion_with_evidence(
+    criterion_id: str, artifact_id: str, result: str, *, note: str | None = None,
+    reason: str = "Verification result recorded", actor: str = "codex",
+    recovery_work_item_id: str | None = None,
+    database_path: str | Path = DEFAULT_DATABASE_PATH,
+) -> dict[str, Any]:
+    """Link Evidence and judge AC in one transaction, including exact replays."""
+
+    if result not in {"passed", "failed"} or not isinstance(reason, str) or not reason.strip():
+        raise ConflictError("verification requires passed/failed and a reason")
+    with _transaction(database_path) as database:
+        artifact = _require_row(database, "SELECT * FROM artifacts WHERE id = ?", (artifact_id,), "Artifact")
+        run = _require_row(database, "SELECT * FROM runs WHERE id = ?", (artifact["run_id"],), "Run")
+        criterion = _require_row(database, "SELECT * FROM acceptance_criteria WHERE id = ?", (criterion_id,), "Acceptance Criterion")
+        if recovery_work_item_id is not None:
+            _require_recovery_target(database, recovery_work_item_id, run["id"])
+        elif run["status"] != "running":
+            raise ConflictError("normal verification requires a running Run")
+        if criterion["work_item_id"] != run["work_item_id"]:
+            raise ConflictError("evidence work item mismatch")
+        if result == "passed" and artifact["verification_status"] not in {"passed", "not_applicable"}:
+            raise ConflictError("the supplied Artifact is not valid passing Evidence")
+        if criterion["status"] == "waived":
+            raise ConflictError("resolved Acceptance Criterion is final")
+        evidence = database.execute(
+            "SELECT * FROM criterion_evidence WHERE criterion_id = ? AND artifact_id = ?", (criterion_id, artifact_id)
+        ).fetchone()
+        now = _utc_now()
+        if evidence is None:
+            database.execute(
+                "INSERT INTO criterion_evidence (criterion_id, artifact_id, note, created_at) VALUES (?, ?, ?, ?)",
+                (criterion_id, artifact_id, note, now),
+            )
+            _append_state_event(database, entity_type="acceptance_criterion", entity_id=criterion_id,
+                                event_type="evidence_linked", actor=actor, run_id=run["id"],
+                                payload={"artifact_id": artifact_id}, created_at=now)
+        # A historical failing result can be retained as Evidence without
+        # undoing a later successful, final AC judgment.
+        if criterion["status"] != result and criterion["status"] != "passed":
+            database.execute("UPDATE acceptance_criteria SET status = ?, resolved_at = ? WHERE id = ?",
+                             (result, now if result == "passed" else None, criterion_id))
+            _append_state_event(database, entity_type="acceptance_criterion", entity_id=criterion_id,
+                                event_type="status_changed", actor=actor, run_id=run["id"], reason=reason,
+                                from_status=criterion["status"], to_status=result, created_at=now)
+        return {
+            "evidence": _require_row(database, "SELECT * FROM criterion_evidence WHERE criterion_id = ? AND artifact_id = ?", (criterion_id, artifact_id), "Evidence"),
+            "criterion": _require_row(database, "SELECT * FROM acceptance_criteria WHERE id = ?", (criterion_id,), "Acceptance Criterion"),
         }
 
 

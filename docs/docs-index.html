@@ -298,7 +298,7 @@
         <p class="lede">하네스의 설계 결정, 상태 관리 방식과 장기 기억 구조를 한곳에서 찾는다. 카드를 클릭하면 해당 문서로 이동한다.</p>
       </div>
       <div class="summary" aria-label="문서 현황">
-        <div class="metric"><strong>17</strong><span>등록된 문서</span></div>
+        <div class="metric"><strong>18</strong><span>등록된 문서</span></div>
         <div class="metric"><strong>3</strong><span>문서 범주</span></div>
       </div>
     </header>
@@ -309,7 +309,7 @@
       <button class="filter" type="button" data-filter="overview" aria-pressed="false">개요</button>
       <button class="filter" type="button" data-filter="workflow" aria-pressed="false">작업·상태</button>
       <button class="filter" type="button" data-filter="memory" aria-pressed="false">장기 기억</button>
-      <span class="result-count" id="result-count" aria-live="polite">17개 표시</span>
+      <span class="result-count" id="result-count" aria-live="polite">18개 표시</span>
     </div>
 
     <section class="group" data-group="overview">
@@ -384,19 +384,19 @@
           <p>Run 성공 후 WI를 ready로 유지하고, 웹 콘솔이나 사용자의 명시적 요청으로만 done 처리하는 기준이다.</p>
           <span class="filename">user-controlled-work-item-completion.md</span>
         </a>
-        <a class="doc-card" data-category="workflow" data-search="폐기된 대안 완료 done workitem wi 후속 수정 run 재사용 fzf" href="./viewer.html?file=completed-work-item-follow-up-runs.md">
+        <a class="doc-card" data-category="workflow" data-search="git worktree state db memorygraph sqlite 공유 저장소 경로 설계 이행" href="./viewer.html?file=research/worktree-shared-db-design.md">
           <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Superseded design</span></div>
-          <h3>완료 WI 후속 Run — 폐기됨</h3>
-          <p>완료 WI를 다시 여는 방안을 검토했던 과거 설계다. 현재 구현 기준으로 사용하지 않는다.</p>
-          <span class="filename">completed-work-item-follow-up-runs.md</span>
+          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Worktree DB design</span></div>
+          <h3>Worktree 공용 DB 설계</h3>
+          <p>worktree(같은 저장소의 독립 작업 폴더)들이 상태 DB(WorkItem·Run 기록)와 기억 DB(장기 기억 저장)를 공유할 위치와 이전 절차를 제안한다.</p>
+          <span class="filename">research/worktree-shared-db-design.md</span>
         </a>
-        <a class="doc-card" data-category="workflow" data-search="중단된 체크리스트 완료 done workitem 후속 run migration fzf binding recovery" href="./viewer.html?file=completed-work-item-follow-up-checklist.md">
+        <a class="doc-card" data-category="workflow" data-search="git worktree sqlite state memorygraph 저장소 공유 방법 선택지 잠금 WAL" href="./viewer.html?file=research/worktree-shared-sqlite-options.md">
           <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Stopped checklist</span></div>
-          <h3>완료 WI 후속 Run 체크리스트 — 중단됨</h3>
-          <p>done 재개 대안에서 발견한 문제를 보존한 기록이며 현재 구현 작업에는 사용하지 않는다.</p>
-          <span class="filename">completed-work-item-follow-up-checklist.md</span>
+          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Worktree DB research</span></div>
+          <h3>Worktree 간 SQLite 공유 조사</h3>
+          <p>상태·기억 DB의 공유 위치와 SQLite(파일 기반 DB)의 동시 쓰기·WAL(기록 로그) 제약을 비교한다.</p>
+          <span class="filename">research/worktree-shared-sqlite-options.md</span>
         </a>
       </div>
     </section>
@@ -445,6 +445,13 @@
           <h3>MemoryGraph 기본 스키마</h3>
           <p>MemoryGraph의 기억·관계 종류와 확장 제약을 검색·필터·다이어그램으로 살펴본다.</p>
           <span class="filename">memorygraph-schema.html</span>
+        </a>
+        <a class="doc-card" data-category="memory" data-search="memorygraph version selection SQLiteBackend searchMemories v0.13.0 wrapper" href="./viewer.html?file=research/memorygraph-version-selection.md">
+          <span class="arrow" aria-hidden="true">↗</span>
+          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Version research</span></div>
+          <h3>MemoryGraph 버전 선택 조사</h3>
+          <p>Recall Wrapper(장기 기억 검색 모듈)에서 쓸 MemoryGraph(장기 기억 저장소) 버전을 릴리스·테스트 근거와 비교해 제안한다.</p>
+          <span class="filename">research/memorygraph-version-selection.md</span>
         </a>
       </div>
     </section>

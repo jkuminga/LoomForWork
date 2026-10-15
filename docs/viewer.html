@@ -301,7 +301,7 @@
 
       const params = new URLSearchParams(location.search);
       const requestedFile = params.get('file') || '';
-      const filePattern = /^[a-z0-9][a-z0-9._-]*\.md$/i;
+      const filePattern = /^(?:[a-z0-9][a-z0-9._-]*|research\/[a-z0-9][a-z0-9._-]*)\.md$/i;
       const state = document.querySelector('#state');
       const article = document.querySelector('#document');
       const toc = document.querySelector('#toc');
@@ -537,13 +537,14 @@
 
       const load = async () => {
         if (!filePattern.test(requestedFile)) {
-          showError('잘못된 문서 주소입니다', '`file`에는 <code>docs/</code> 바로 아래의 Markdown 파일 이름만 사용할 수 있습니다.');
+          showError('잘못된 문서 주소입니다', '`file`에는 <code>docs/</code> 바로 아래 또는 <code>docs/research/</code> 안의 Markdown 파일만 사용할 수 있습니다.');
           return;
         }
         fileName.textContent = requestedFile;
-        rawLink.href = `./${encodeURIComponent(requestedFile)}`;
+        const encodedPath = requestedFile.split('/').map(encodeURIComponent).join('/');
+        rawLink.href = `./${encodedPath}`;
         try {
-          const response = await fetch(`./${encodeURIComponent(requestedFile)}`, { cache: 'no-cache' });
+          const response = await fetch(`./${encodedPath}`, { cache: 'no-cache' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const markdown = await response.text();
           const rendered = parseBlocks(markdown);

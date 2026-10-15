@@ -36,6 +36,11 @@ HARNESS_READ_TOOLS = frozenset(
         "search_work_items",
         "get_postflight_status",
         "list_memory_candidates",
+        "list_run_tool_events",
+        "get_review_plan",
+        "get_run_review_status",
+        "list_runs_with_unreviewed_tool_events",
+        "get_run_review_context",
     }
 )
 HARNESS_BOOTSTRAP_TOOLS = frozenset(
@@ -47,6 +52,9 @@ HARNESS_BOOTSTRAP_TOOLS = frozenset(
         "start_work",
         "close_work_item",
         "recover_abandoned_work",
+        "recover_review_plan",
+        "apply_unplanned_review_recovery",
+        "delete_review_plan",
     }
 )
 HARNESS_MEMORY_READ_TOOLS = frozenset({"inspect_memory_candidate"})

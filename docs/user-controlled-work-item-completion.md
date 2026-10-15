@@ -3,7 +3,6 @@
 ## 문서 상태
 
 - 상태: 구현 기준
-- 대체하는 설계: [`completed-work-item-follow-up-runs.md`](./completed-work-item-follow-up-runs.md)
 - 폐기한 접근: `done` WI 재개, 후속 Run mode, 완료 WI 전용 fzf 화면
 
 ## 결정 배경

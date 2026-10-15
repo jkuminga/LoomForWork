@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS run_tool_events (
   id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
   tool_use_id TEXT NOT NULL CHECK (length(trim(tool_use_id)) > 0),
   run_id TEXT NOT NULL REFERENCES runs(id),
+  run_seq INTEGER NOT NULL CHECK (run_seq > 0),
   tool_name TEXT NOT NULL CHECK (length(trim(tool_name)) > 0),
   tool_family TEXT NOT NULL CHECK (tool_family IN (
     'bash', 'file_edit', 'mcp', 'lifecycle', 'other'
@@ -114,10 +115,10 @@ CREATE TABLE IF NOT EXISTS run_tool_events (
   exit_code INTEGER,
   input_summary TEXT NOT NULL CHECK (length(trim(input_summary)) <= 512),
   result_summary TEXT NOT NULL CHECK (length(trim(result_summary)) <= 1024),
-  review_status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (review_status IN ('pending', 'promoted', 'ignored', 'error')),
+  reviewed_at TEXT CHECK (reviewed_at IS NULL OR length(trim(reviewed_at)) > 0),
   created_at TEXT NOT NULL CHECK (length(trim(created_at)) > 0),
-  UNIQUE (run_id, tool_use_id)
+  UNIQUE (run_id, tool_use_id),
+  UNIQUE (run_id, run_seq)
 );
 
 CREATE TABLE IF NOT EXISTS artifacts (
@@ -432,7 +433,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS runs_one_running_per_work_item_idx
 CREATE INDEX IF NOT EXISTS run_tool_events_run_created_at_idx
   ON run_tool_events(run_id, created_at, id);
 CREATE UNIQUE INDEX IF NOT EXISTS artifacts_source_event_idx
-  ON artifacts(run_id, kind, source_event_id)
+  ON artifacts(run_id, source_event_id)
   WHERE source_event_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS artifacts_run_kind_idx
   ON artifacts(run_id, kind);

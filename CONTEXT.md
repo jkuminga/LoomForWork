@@ -81,6 +81,12 @@ Artifact의 검증 결과다. `not_applicable`, `pending`, `passed`, `failed` �
 **Evidence**  
 어떤 Artifact가 어떤 Acceptance Criterion을 뒷받침하는지 나타내는 연결이다. 독립적인 파일이 아니라 `criterion_evidence` 테이블의 관계 행이다.
 
+**Run Tool Event**<br>
+한 Run에서 실행된 도구 사용을 기록한 항목이다. 실행 사실과 Artifact로 남길 가치는 구별한다.
+
+**Review Plan**<br>
+한 Run의 도구 사용 기록을 Artifact·Evidence로 남길지 결정한 마감 판단이다. 실제 저장 성공 여부와는 구별한다.
+
 ## 상태와 실행 기록
 
 **State Store**  

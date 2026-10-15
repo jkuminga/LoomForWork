@@ -6,7 +6,6 @@ import json
 import hashlib
 import os
 import re
-import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -31,8 +30,6 @@ _PATCH_FILE_PATTERN = re.compile(
     r"^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s*(.+?)\s*$",
     re.MULTILINE,
 )
-_SHELL_META_PATTERN = re.compile(r"(?:&&|\|\||[|;&<>`$()]|\n)")
-_TRIVIAL_READ_COMMANDS = frozenset({"pwd", "ls", "cd", "pushd", "popd"})
 
 RecallRunner = Callable[[str], dict[str, Any]]
 StartedStatusReader = Callable[..., Mapping[str, Any]]
@@ -115,7 +112,8 @@ def summarize_tool_input(tool_name: str, tool_input: Any) -> str:
             )
         return _compact_text(f"cmd={command}", limit=MAX_INPUT_SUMMARY_LENGTH)
     if family == "file_edit":
-        patch = tool_input.get("patch", "") if isinstance(tool_input, Mapping) else tool_input
+        patch = next((tool_input[key] for key in ("patch", "command", "input")
+                      if isinstance(tool_input.get(key), str)), "") if isinstance(tool_input, Mapping) else tool_input
         patch_text = patch if isinstance(patch, str) else str(patch)
         files = [match.strip() for match in _PATCH_FILE_PATTERN.findall(patch_text)]
         if files:
@@ -135,47 +133,6 @@ def summarize_tool_input(tool_name: str, tool_input: Any) -> str:
     return _compact_text(
         f"input={tool_input}", limit=MAX_INPUT_SUMMARY_LENGTH
     )
-
-
-def _shell_command_text(tool_input: Any) -> str | None:
-    """Read a shell command from either Codex's ``cmd`` or ``command`` field."""
-
-    if isinstance(tool_input, str):
-        return tool_input.strip() or None
-    if not isinstance(tool_input, Mapping):
-        return None
-    for field in ("cmd", "command", "script"):
-        value = tool_input.get(field)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def is_trivial_read_command(tool_name: str, tool_input: Any) -> bool:
-    """Identify only unambiguous, low-value shell navigation/status commands.
-
-    This intentionally uses a narrow allowlist. Compound commands and anything
-    that cannot be tokenized safely remain eligible for event storage.
-    """
-
-    if classify_tool_family(tool_name) != "bash":
-        return False
-    command = _shell_command_text(tool_input)
-    if command is None or _SHELL_META_PATTERN.search(command):
-        return False
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return False
-    if not tokens:
-        return False
-    if tokens[0] in _TRIVIAL_READ_COMMANDS:
-        return True
-    # Keep this deliberately narrow: only the plain Git status command and
-    # its common display flags are considered navigation noise.
-    if tokens[0] == "git" and len(tokens) >= 2 and tokens[1] == "status":
-        return all(token.startswith("-") for token in tokens[2:])
-    return False
 
 
 def _response_text(tool_response: Any) -> str:
@@ -401,10 +358,9 @@ def record_general_tool_event(
 ) -> dict[str, Any] | None:
     """Record one non-lifecycle tool event when this session owns an active Run.
 
-    This path deliberately performs no MCP call, model inference, or user-facing
-    denial. A missing/invalid Binding (the temporary session-to-Run pointer) or a
-    database failure simply means the event is skipped; the original tool call
-    has already completed and must not be blocked by telemetry bookkeeping.
+    Without a Binding this is an ordinary non-Run tool, so no event is expected.
+    A broken Binding or failed write produces bounded model-visible feedback;
+    it never denies the already-completed tool execution.
     """
 
     tool_name = event.get("tool_name")
@@ -413,15 +369,20 @@ def record_general_tool_event(
     tool_name = tool_name.strip()
     if tool_name.lower().startswith(HARNESS_MCP_TOOL_PREFIXES):
         return None
-    if is_trivial_read_command(tool_name, event.get("tool_input")):
-        return None
     session_id = event.get("session_id")
     turn_id = event.get("turn_id")
     if not isinstance(session_id, str) or not session_id.strip():
         return None
     if not isinstance(turn_id, str) or not turn_id.strip():
         return None
+    run_id = None
+    input_summary = result_summary = ""
     try:
+        input_summary = summarize_tool_input(tool_name, event.get("tool_input"))
+        result_summary, exit_code = summarize_tool_response(event.get("tool_response"))
+        # Normal requests outside Harness work deliberately have no Binding.
+        if runtime_binding.load_binding(session_id.strip(), bindings_directory=bindings_directory) is None:
+            return None
         active = runtime_binding.validate_active_binding(
             session_id=session_id.strip(),
             current_turn_id=turn_id.strip(),
@@ -429,9 +390,6 @@ def record_general_tool_event(
             bindings_directory=bindings_directory,
         )
         run_id = active["active_run"]["id"]
-        result_summary, exit_code = summarize_tool_response(
-            event.get("tool_response")
-        )
         return state_store.record_run_tool_event(
             run_id,
             tool_use_id=_tool_use_id(event, tool_name=tool_name),
@@ -439,14 +397,18 @@ def record_general_tool_event(
             tool_family=classify_tool_family(tool_name),
             status=tool_event_status(event.get("tool_response"), exit_code),
             exit_code=exit_code,
-            input_summary=summarize_tool_input(tool_name, event.get("tool_input")),
+            input_summary=input_summary,
             result_summary=result_summary,
             database_path=database_path,
         )
-    except Exception:
-        # PostToolUse is observational. State-store issues must never deny or
-        # otherwise alter the already-completed tool execution.
-        return None
+    except Exception as error:
+        return {
+            "type": "tool_event_recording_failed", "run_id": run_id,
+            "tool_use_id": _tool_use_id(event, tool_name=tool_name),
+            "tool_name": tool_name, "input_summary": input_summary,
+            "result_summary": result_summary,
+            "reason": getattr(error.__cause__, "sqlite_errorname", type(error).__name__),
+        }
 
 
 def dispatch_post_tool_use(
@@ -461,11 +423,16 @@ def dispatch_post_tool_use(
 
     tool_name = event.get("tool_name")
     if tool_name not in {START_WORK_TOOL, FINISH_WORK_TOOL}:
-        record_general_tool_event(
+        recorded = record_general_tool_event(
             event,
             database_path=database_path,
             bindings_directory=bindings_directory,
         )
+        if recorded and recorded.get("type") == "tool_event_recording_failed":
+            return {"continue": True, "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": json.dumps(recorded, ensure_ascii=False, separators=(",", ":")),
+            }}
         return None
 
     if tool_name == FINISH_WORK_TOOL:

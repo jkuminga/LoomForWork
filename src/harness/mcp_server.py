@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from mcp.server import MCPServer
 
-from . import state_store
+from . import review_plans, state_store
 
 
 def create_server(
@@ -460,9 +460,10 @@ def create_server(
         """Register a file, test, build, commit, or other verifiable Run result.
 
         Store only a short summary and an optional URI; keep full output in the
-        referenced file, Trace, Git, or CI system when one exists. Automatic
-        Artifact promotion can provide ``source_event_id`` to link the result
-        to one ``run_tool_events.id``. Repeated test, lint, and build executions
+        referenced file, Trace, Git, or CI system when one exists. At work-finish
+        use the saved Review Plan to select meaningful results, rather than
+        registering every tool call. Provide ``source_event_id`` to link the
+        result to one ``run_tool_events.id``. Repeated test, lint, and build executions
         use ``command:<command-family>:<YYYYMMDDTHHMMSSZ>`` when a URI is known.
         """
 
@@ -511,28 +512,87 @@ def create_server(
         Criterion; later valid Evidence may still pass it.
         """
 
-        evidence = state_store.link_evidence(
-            criterion_id,
-            artifact_id,
-            note=note,
-            actor="codex",
-            database_path=database_path,
+        return state_store.verify_criterion_with_evidence(
+            criterion_id, artifact_id, result, note=note, reason=reason,
+            actor="codex", database_path=database_path,
         )
-        if result == "passed":
-            criterion = state_store.pass_criterion(
-                criterion_id,
-                actor="codex",
-                reason=reason,
-                database_path=database_path,
-            )
-        else:
-            criterion = state_store.fail_criterion(
-                criterion_id,
-                actor="codex",
-                reason=reason,
-                database_path=database_path,
-            )
-        return {"evidence": evidence, "criterion": criterion}
+
+    @server.tool(name="list_run_tool_events")
+    def list_run_tool_events(run_id: str, unreviewed_only: bool = False) -> dict[str, Any]:
+        """Read ordered tool events and snapshot_max_seq from one DB snapshot.
+
+        Before closeout, classify every returned event with task context and
+        save_review_plan. For recovery use the original historical Run ID.
+        """
+        return state_store.get_run_tool_event_snapshot(run_id, unreviewed_only=unreviewed_only, database_path=database_path)
+
+    @server.tool(name="save_review_plan")
+    def save_review_plan(run_id: str, plan: dict[str, Any]) -> dict[str, Any]:
+        """Validate full snapshot coverage and atomically publish immutable decisions.
+
+        schema_version=1; run_id, work_item_id, snapshot_max_seq, events.
+        Each event has event_id, decision (artifact_evidence/artifact_only/exclude),
+        reason, artifact (kind/verification_status/summary/uri or null), evidence
+        (criterion_id/result/note/reason entries). Store before A/E writes.
+        """
+        return review_plans.save_review_plan(run_id, plan, database_path=database_path)
+
+    @server.tool(name="get_review_plan")
+    def get_review_plan(run_id: str) -> dict[str, Any]:
+        """Read and validate an existing immutable plan; never recreate a damaged file."""
+        return review_plans.load_review_plan(run_id, database_path=database_path)
+
+    @server.tool(name="finalize_review_plan")
+    def finalize_review_plan(run_id: str) -> dict[str, Any]:
+        """Acknowledge applied plan decisions and scrub summaries atomically.
+
+        Check ae_complete and unreviewed_event_ids. Post-snapshot events are
+        acknowledged without new A/E inference; missing A/E remains unreviewed.
+        """
+        return review_plans.finalize_review_plan(run_id, database_path=database_path)
+
+    @server.tool(name="get_run_review_status")
+    def get_run_review_status(run_id: str) -> dict[str, Any]:
+        """Read unreviewed and inconsistent EVT IDs without tool summaries."""
+        return state_store.get_run_review_status(run_id, database_path=database_path)
+
+    @server.tool(name="delete_review_plan")
+    def delete_review_plan(run_id: str) -> dict[str, Any]:
+        """After finish_work succeeds, remove a validated fully applied plan.
+
+        Requires a finished Run with all events acknowledged and summaries
+        scrubbed. Safe before a new Run; no active Runtime Binding is required.
+        """
+        return review_plans.delete_review_plan(run_id, database_path=database_path)
+
+    @server.tool(name="list_runs_with_unreviewed_tool_events")
+    def list_runs_with_unreviewed_tool_events(work_item_id: str) -> dict[str, Any]:
+        """Before start_work, find historical Runs needing review for this selected WI."""
+        return {"runs": state_store.list_runs_with_unreviewed_tool_events(work_item_id, database_path=database_path)}
+
+    @server.tool(name="get_run_review_context")
+    def get_run_review_context(run_id: str) -> dict[str, Any]:
+        """Read historical EVTs, Artifacts, Evidence and ACs for plan-less recovery."""
+        return state_store.get_run_review_context(run_id, database_path=database_path)
+
+    @server.tool(name="recover_review_plan")
+    def recover_review_plan(work_item_id: str, run_id: str) -> dict[str, Any]:
+        """Replay a validated historical plan before starting the selected WI.
+
+        Reuse saved results, apply only missing A/E, acknowledge and scrub
+        completed events. Preserve the JSON and failed EVT IDs for retry.
+        """
+        return review_plans.recover_review_plan(work_item_id, run_id, database_path=database_path)
+
+    @server.tool(name="apply_unplanned_review_recovery")
+    def apply_unplanned_review_recovery(work_item_id: str, run_id: str, decisions: list[dict[str, Any]]) -> dict[str, Any]:
+        """Apply confident EVT decisions only when historical JSON is missing/damaged.
+
+        Use save_review_plan's event decision shape. Reason from DB, summaries
+        and available context. Leave uncertain EVTs out and report them; this
+        is not a user-discard override or a way to replace a valid plan.
+        """
+        return review_plans.apply_unplanned_review_recovery(work_item_id, run_id, decisions, database_path=database_path)
 
     @server.tool(name="get_postflight_status")
     def get_postflight_status(work_item_id: str) -> dict[str, Any]:

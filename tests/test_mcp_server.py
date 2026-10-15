@@ -20,6 +20,49 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
 
+    async def test_review_plan_closeout_and_historical_recovery_through_mcp(self) -> None:
+        item = state_store.create_ready_work_item(
+            title="Review", kind="verification", goal="Verify recovery", next_action="Review",
+            acceptance_criteria=["Tests prove the result"], actor="test", database_path=self.database_path,
+        )
+        ac = state_store.get_preflight_context(item["id"], database_path=self.database_path)["acceptance_criteria"][0]["id"]
+        async with Client(create_server(self.database_path)) as client:
+            async def call(name, arguments):
+                result = await client.call_tool(name, arguments)
+                self.assertFalse(result.is_error, result.content)
+                return result.structured_content
+            run = await call("start_work", {"work_item_id": item["id"], "intent": "Review", "recall_query": "review recovery"})
+            event = state_store.record_run_tool_event(run["id"], tool_use_id="test", tool_name="bash", tool_family="bash",
+                status="succeeded", exit_code=0, input_summary="pytest", result_summary="42 passed", database_path=self.database_path)
+            snapshot = await call("list_run_tool_events", {"run_id": run["id"]})
+            plan = {"schema_version": 1, "work_item_id": item["id"], "run_id": run["id"], "snapshot_max_seq": snapshot["snapshot_max_seq"],
+                "events": [{"event_id": event["id"], "decision": "artifact_evidence", "reason": "test result",
+                    "artifact": {"kind": "test_run", "verification_status": "passed", "summary": "42 passed", "uri": None},
+                    "evidence": [{"criterion_id": ac, "result": "passed", "note": "tests", "reason": "verified"}]}]}
+            await call("save_review_plan", {"run_id": run["id"], "plan": plan})
+            await call("get_review_plan", {"run_id": run["id"]})
+            artifact = await call("record_artifact", {"run_id": run["id"], "source_event_id": event["id"], **plan["events"][0]["artifact"]})
+            # Simulate interruption after Artifact insertion, before Evidence/ack.
+            await call("finish_work", {"run_id": run["id"], "outcome": "interrupted", "summary": "partial", "reason": "test",
+                                       "termination_reason": "simulated interruption", "next_action": "Recover"})
+            historical = await call("list_runs_with_unreviewed_tool_events", {"work_item_id": item["id"]})
+            self.assertEqual(historical["runs"][0]["id"], run["id"])
+            await call("get_run_review_context", {"run_id": run["id"]})
+            recovered = await call("recover_review_plan", {"work_item_id": item["id"], "run_id": run["id"]})
+            self.assertTrue(recovered["ae_complete"])
+            self.assertTrue(recovered["deleted"])
+            status = await call("get_run_review_status", {"run_id": run["id"]})
+            self.assertEqual(status["unreviewed_event_ids"], [])
+            self.assertEqual(state_store.get_run_artifacts(run["id"], database_path=self.database_path)[0]["id"], artifact["id"])
+            # A new Run uses the normal finalize -> finish -> delete sequence.
+            next_run = await call("start_work", {"work_item_id": item["id"], "intent": "Next", "recall_query": "next review"})
+            empty_plan = {"schema_version": 1, "work_item_id": item["id"], "run_id": next_run["id"], "snapshot_max_seq": 0, "events": []}
+            await call("save_review_plan", {"run_id": next_run["id"], "plan": empty_plan})
+            finalized = await call("finalize_review_plan", {"run_id": next_run["id"]})
+            self.assertTrue(finalized["ae_complete"])
+            await call("finish_work", {"run_id": next_run["id"], "outcome": "progressed", "summary": "done", "reason": "test", "completion_recommended": True})
+            self.assertTrue((await call("delete_review_plan", {"run_id": next_run["id"]}))["deleted"])
+
     async def test_codex_can_read_project_status_through_mcp(self) -> None:
         async with Client(create_server(self.database_path)) as client:
             tools = await client.list_tools()
@@ -596,6 +639,10 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         expected_tools = {
+            "list_run_tool_events", "save_review_plan", "get_review_plan",
+            "finalize_review_plan", "get_run_review_status", "delete_review_plan",
+            "list_runs_with_unreviewed_tool_events", "get_run_review_context",
+            "recover_review_plan", "apply_unplanned_review_recovery",
             "get_project_status",
             "search_work_items",
             "get_work_context",
