@@ -581,6 +581,8 @@ def create_server(
 
         Reuse saved results, apply only missing A/E, acknowledge and scrub
         completed events. Preserve the JSON and failed EVT IDs for retry.
+        If no plan exists but review remains, return recovery_status=plan_missing
+        with outstanding EVT IDs; use the planless recovery tool after review.
         """
         return review_plans.recover_review_plan(work_item_id, run_id, database_path=database_path)
 

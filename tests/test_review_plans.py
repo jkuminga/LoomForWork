@@ -165,6 +165,27 @@ class ReviewPlanTests(unittest.TestCase):
         self.assertTrue(replay["ae_complete"])
         self.assertEqual(len(store.get_criterion_evidence(self.ac, database_path=self.db)), 1)
 
+    def test_recovery_reports_missing_plan_without_acknowledging_events(self):
+        self.finish()
+        result = plans.recover_review_plan(self.item["id"], self.run, database_path=self.db)
+        self.assertEqual(result, {
+            "run_id": self.run,
+            "recovery_status": "plan_missing",
+            "unreviewed_event_ids": [self.event["id"]],
+            "inconsistent_event_ids": [],
+        })
+        event = store.list_run_tool_events(self.run, database_path=self.db)[0]
+        self.assertIsNone(event["reviewed_at"])
+        self.assertEqual(event["result_summary"], "42 passed")
+
+    def test_recovery_keeps_corrupt_plan_as_an_error(self):
+        self.save(); self.finish()
+        path = self.db.parent / "review-plans" / f"{self.run}.json"
+        path.write_text("broken")
+        with self.assertRaisesRegex(store.ConflictError, "Review Plan unavailable"):
+            plans.recover_review_plan(self.item["id"], self.run, database_path=self.db)
+        self.assertEqual(path.read_text(), "broken")
+
     def test_recovery_partial_failure_preserves_plan_and_successful_events(self):
         second = self.add_event("second")
         decisions = [self.decision(), self.decision(second, "exclude")]

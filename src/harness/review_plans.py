@@ -242,8 +242,10 @@ def recover_review_plan(work_item_id: str, run_id: str, *, database_path: str | 
         store._require_recovery_target(database, work_item_id, run_id)
     path = _path(run_id, database_path)
     status = store.get_run_review_status(run_id, database_path=database_path)
-    if not path.exists() and not path.is_symlink() and not status["unreviewed_event_ids"] and not status["inconsistent_event_ids"]:
-        return {**status, "ae_complete": True, "results": [], "deleted": False}
+    if not path.exists() and not path.is_symlink():
+        if not status["unreviewed_event_ids"] and not status["inconsistent_event_ids"]:
+            return {**status, "ae_complete": True, "results": [], "deleted": False}
+        return {**status, "recovery_status": "plan_missing"}
     plan = load_review_plan(run_id, database_path=database_path)
     if plan["work_item_id"] != work_item_id:
         raise store.ConflictError("recovery selected WorkItem does not own the plan")
