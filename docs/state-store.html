@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Harness v2의 SQLite 상태 저장소 구조, 8개 테이블, 상태 전이와 에이전트 작업 흐름을 설명하는 대화형 문서">
+  <meta name="description" content="Harness v2의 SQLite 상태 저장소 구조, 10개 테이블, 상태 전이와 에이전트 작업 흐름을 설명하는 대화형 문서">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='8' rx='11' ry='5' fill='%2317665a'/%3E%3Cpath d='M5 8v16c0 2.8 4.9 5 11 5s11-2.2 11-5V8' fill='%23dcece7' stroke='%2317665a' stroke-width='2'/%3E%3Cpath d='M5 16c0 2.8 4.9 5 11 5s11-2.2 11-5' fill='none' stroke='%23a25b32' stroke-width='2'/%3E%3C/svg%3E">
   <title>Harness v2 상태 저장소</title>
   <style>
@@ -439,7 +439,7 @@
         <h1>상태 저장소</h1>
         <p class="lede">설계·조사·의사결정·구현·검증을 포함해 프로젝트가 지금 어디까지 왔고 다음에 무엇을 해야 하는지 기록하는 SQLite 작업 장부다. 여러 체크리스트 문서를 맞춰 쓰는 대신, 현재 상태와 변경 이력을 한곳에서 관리한다.</p>
         <div class="metrics" aria-label="설계 요약">
-          <div class="metric"><strong>8</strong><span>v1 핵심 테이블</span></div>
+          <div class="metric"><strong>10</strong><span>현재 테이블</span></div>
           <div class="metric"><strong>1</strong><span>현재 상태의 정본</span></div>
           <div class="metric"><strong>0</strong><span>DB에 복사할 외부 본문</span></div>
         </div>
@@ -447,7 +447,7 @@
 
       <div class="notice" role="note">
         <b>IMPLEMENTATION STATUS</b>
-        <p>v1의 8개 테이블, 핵심 제약·인덱스·Trigger와 5개 파생 View가 <code>.harness/schema.sql</code> 및 로컬 <code>.harness/state.db</code>에 구현되어 있다. 스키마 계약은 <code>tests/test_schema.py</code>에서 검증한다.</p>
+        <p>현재 10개 테이블, 핵심 제약·인덱스·Trigger와 5개 파생 View가 <code>.harness/schema.sql</code>에 정의되어 있다. 도구 사용 기록은 <code>run_tool_events</code>, 사용자 메모는 <code>work_item_memos</code>에 저장한다. 스키마 계약은 <code>tests/test_schema.py</code>에서 검증한다.</p>
       </div>
 
       <section id="overview">
@@ -460,7 +460,7 @@
           <div class="role"><dt>State Store</dt><dd>설계부터 구현까지 현재 할 일, 진행 상태, 완료 조건과 검증 근거</dd></div>
           <div class="role"><dt>MemoryGraph</dt><dd>왜 그렇게 결정했는지와 다시 쓸 문제·해결 경험</dd></div>
           <div class="role"><dt>Git / Artifact</dt><dd>실제로 바뀐 코드와 테스트·빌드 같은 결과물</dd></div>
-          <div class="role"><dt>Trace</dt><dd>한 Run에서 발생한 모델·도구 호출, 오류, 시간과 토큰</dd></div>
+          <div class="role"><dt>Run Tool Event</dt><dd>활성 Run에서 발생한 일반 도구 실행의 짧은 입력·결과 요약과 검토 시각</dd></div>
         </dl>
 
         <div class="scope-grid">
@@ -471,7 +471,8 @@
               <li>SQLite 하나로 현재 상태와 감사 이력 관리</li>
               <li>가까운 WorkItem만 구체화하는 점진적 계획</li>
               <li>설계·조사·의사결정·구현·검증 WorkItem과 각 작업 세션의 Run</li>
-              <li>발견 즉시 단건으로 저장하는 장기 기억 후보</li>
+              <li>발견 즉시 단건으로 저장하는 장기 기억 후보와 WorkItem 메모</li>
+              <li>Run의 일반 도구 실행 기록과 Artifact·Evidence 검토 상태</li>
               <li>Project는 저장소 자체로 식별하고 별도 테이블을 두지 않음</li>
             </ul>
           </article>
@@ -481,7 +482,7 @@
               <li>팀 동기화, 원격 상태 서버와 권한 관리</li>
               <li>모든 세부 WorkItem 사전 생성</li>
               <li>자동 우선순위 계산과 비용 환산</li>
-              <li>Git diff, Trace 전문과 MemoryGraph 본문 복사</li>
+              <li>Git diff, 도구 출력 전문과 MemoryGraph 본문 복사</li>
               <li>후보 단계의 관계 저장—관계는 최종 검토에서 판단</li>
             </ul>
           </article>
@@ -496,9 +497,9 @@
         <div class="diagram" aria-label="상태 저장소 엔티티 관계 다이어그램">
           <svg viewBox="0 0 1040 430" role="img" aria-labelledby="model-title model-desc">
             <title id="model-title">상태 저장소 엔티티 관계</title>
-            <desc id="model-desc">별도 테이블이 없는 Project 범위 안에서 Feature와 WorkItem, Run, Artifact, Evidence, Memory Candidate로 이어지는 관계와 State Event를 보여준다.</desc>
+            <desc id="model-desc">별도 테이블이 없는 Project 범위 안에서 Feature, WorkItem, Run, 도구 실행 기록, Artifact, Evidence, 메모, 기억 후보와 State Event의 관계를 보여준다.</desc>
             <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
-            <path class="line" d="M175 85H250"/><path class="line" d="M405 85H475"/><path class="line" d="M635 85H705"/><path class="line" d="M855 85H920"/>
+            <path class="line" d="M175 85H250"/><path class="line" d="M405 85H475"/><path class="line" d="M635 85H705"/><path class="line" d="M855 85H875"/>
             <path class="line" d="M555 125V198H395V250"/><path class="line" d="M555 125V250"/><path class="line" d="M780 125V250"/><path class="line" d="M840 125V205H945V250"/>
             <path class="line" d="M700 290H625"/><path class="line" d="M475 290H410"/>
             <path class="line" d="M325 330V378H900"/>
@@ -507,12 +508,13 @@
             <rect class="node" x="250" y="45" width="155" height="80" rx="10"/><text x="327" y="78" text-anchor="middle" font-size="17" font-weight="700">Feature</text><text class="sub" x="327" y="102" text-anchor="middle">큰 목표·작업 영역</text>
             <rect class="node core" x="475" y="45" width="160" height="80" rx="10"/><text x="555" y="78" text-anchor="middle" font-size="17" font-weight="700">WorkItem</text><text class="sub" x="555" y="102" text-anchor="middle">실제로 끝낼 작업</text>
             <rect class="node run" x="705" y="45" width="150" height="80" rx="10"/><text x="780" y="78" text-anchor="middle" font-size="17" font-weight="700">Run</text><text class="sub" x="780" y="102" text-anchor="middle">한 번의 실행 시도</text>
-            <rect class="node" x="920" y="45" width="90" height="80" rx="10"/><text x="965" y="78" text-anchor="middle" font-size="15" font-weight="700">Trace</text><text class="sub" x="965" y="102" text-anchor="middle">상세 기록</text>
+            <rect class="node" x="875" y="45" width="140" height="80" rx="10"/><text x="945" y="75" text-anchor="middle" font-size="15" font-weight="700">Run Tool Event</text><text class="sub" x="945" y="101" text-anchor="middle">짧은 실행 기록</text>
             <rect class="node" x="250" y="250" width="160" height="80" rx="10"/><text x="330" y="278" text-anchor="middle" font-size="15" font-weight="700">Acceptance</text><text x="330" y="299" text-anchor="middle" font-size="15" font-weight="700">Criterion</text><text class="sub" x="330" y="317" text-anchor="middle">개별 완료 조건</text>
             <rect class="node" x="475" y="250" width="150" height="80" rx="10"/><text x="550" y="282" text-anchor="middle" font-size="17" font-weight="700">Evidence</text><text class="sub" x="550" y="306" text-anchor="middle">조건↔산출물 연결</text>
             <rect class="node run" x="700" y="250" width="160" height="80" rx="10"/><text x="780" y="282" text-anchor="middle" font-size="17" font-weight="700">Artifact</text><text class="sub" x="780" y="306" text-anchor="middle">검증 가능한 결과 참조</text>
             <rect class="node memory" x="875" y="250" width="140" height="80" rx="10"/><text x="945" y="278" text-anchor="middle" font-size="15" font-weight="700">Memory</text><text x="945" y="299" text-anchor="middle" font-size="15" font-weight="700">Candidate</text><text class="sub" x="945" y="317" text-anchor="middle">검토 전 기억 초안</text>
-            <rect class="node core" x="460" y="378" width="190" height="42" rx="8"/><text x="555" y="404" text-anchor="middle" font-size="15" font-weight="700">State Event · 모든 상태 변경</text>
+            <rect class="node" x="35" y="250" width="155" height="80" rx="10"/><text x="112" y="282" text-anchor="middle" font-size="15" font-weight="700">WI Memo</text><text class="sub" x="112" y="306" text-anchor="middle">사용자 작업 메모</text>
+            <rect class="node core" x="460" y="378" width="190" height="42" rx="8"/><text x="555" y="404" text-anchor="middle" font-size="15" font-weight="700">State Event · 상태 이력</text>
           </svg>
         </div>
         <div class="principles">
@@ -520,17 +522,17 @@
           <div class="principle"><b>Artifact는 Run에만 연결</b><p>WorkItem을 중복 저장하지 않는다. Artifact → Run → WorkItem 경로로 소속을 계산한다.</p></div>
           <div class="principle"><b>Evidence는 연결의 역할</b><p>별도 결과물이 아니다. Acceptance Criterion을 어떤 Artifact가 증명하는지 나타내는 연결이다.</p></div>
         </div>
-        <p style="margin:14px 0 0;color:var(--muted);font-size:.84rem">WorkItem은 하위 WorkItem이나 별도 의존 관계를 갖지 않는 평평한 실행 단위다. 작업 순서는 <code>status</code>로 실행 가능 여부를 구분하고, <code>next_action</code>과 <code>block_reason</code>에 바로 다음 행동과 막힌 이유를 기록해 관리한다.</p>
+        <p style="margin:14px 0 0;color:var(--muted);font-size:.84rem">도식의 연결선은 주요 소속 관계를 간략히 보여준다. <code>work_item_memos</code>는 WorkItem에, <code>run_tool_events</code>는 Run에 속한다. Artifact는 <code>source_event_id</code>로 원본 도구 기록을 선택적으로 가리킬 수 있다. 메모와 도구 기록의 일반 처리에는 State Event를 남기지 않는다.</p>
       </section>
 
       <section id="schema">
         <div class="section-head">
-          <h2>8개 테이블 사전</h2>
+          <h2>10개 테이블 사전</h2>
           <p>테이블을 선택하면 필드의 형식, 필수 여부와 쉬운 설명을 볼 수 있다. 검색은 테이블명·필드명·설명을 함께 찾는다.</p>
         </div>
         <div class="schema-tools">
           <input id="schema-search" class="schema-search" type="search" placeholder="예: next_action, 종료 이유, 검증 근거" aria-label="테이블과 필드 검색">
-          <span id="schema-count" class="count" aria-live="polite">8개 테이블</span>
+          <span id="schema-count" class="count" aria-live="polite">10개 테이블</span>
         </div>
         <div class="schema-layout">
           <div id="table-list" class="table-list" aria-label="테이블 선택"></div>
@@ -573,15 +575,14 @@
         <h3 style="margin-top:28px">Run 종료와 WorkItem 상태 조합</h3>
         <div class="transition-table table-wrap">
           <table><thead><tr><th>작업 결과</th><th>Run 상태</th><th>WorkItem 상태</th></tr></thead><tbody>
-            <tr><td>작업과 검증 완료</td><td><code>succeeded</code></td><td><code>done</code></td></tr>
-            <tr><td>이번 Run은 성공했고 전체 작업은 계속</td><td><code>succeeded</code></td><td><code>ready</code> + 새 <code>next_action</code></td></tr>
+            <tr><td>이번 Run 성공</td><td><code>succeeded</code></td><td><code>ready</code> + 새 <code>next_action</code> 또는 완료 권장 문구</td></tr>
             <tr><td>외부 조건에 막혀 중단</td><td><code>interrupted</code></td><td><code>blocked</code></td></tr>
             <tr><td>실패했지만 다시 시도 가능</td><td><code>failed</code></td><td><code>ready</code></td></tr>
             <tr><td>세션 중단 후 다시 시도 가능</td><td><code>interrupted</code></td><td><code>ready</code></td></tr>
             <tr><td>작업 자체를 취소</td><td><code>cancelled</code></td><td><code>cancelled</code></td></tr>
           </tbody></table>
         </div>
-        <p style="margin:14px 0 0;color:var(--muted);font-size:.84rem"><code>finish_run()</code>은 Run 종료, WorkItem 상태 변경과 각 State Event 기록을 하나의 SQLite 트랜잭션으로 처리한다. 일부만 성공할 수 없으며, 하나라도 실패하면 전체 변경을 되돌린다.</p>
+        <p style="margin:14px 0 0;color:var(--muted);font-size:.84rem"><code>finish_run()</code>은 Run 종료, WorkItem 상태 변경과 각 State Event 기록을 하나의 SQLite 트랜잭션으로 처리한다. <code>succeeded</code> Run과 <code>done</code> WI의 직접 조합은 허용하지 않는다. WI 완료는 사용자의 별도 <code>close_work_item()</code> 호출이다.</p>
         <h3 style="margin-top:28px">WorkItem을 <code>done</code>으로 바꾸기 전 확인</h3>
         <div class="checklist">
           <div class="check"><b>01</b><p>Acceptance Criterion이 하나 이상 존재하는가?</p></div>
@@ -595,16 +596,16 @@
       <section id="flow">
         <div class="section-head">
           <h2>단일 작업의 상태 흐름</h2>
-          <p>에이전트는 먼저 현재 WorkItem을 읽고 새 Run을 만든다. 실행 결과를 Artifact와 Evidence로 연결한 뒤 Run과 WorkItem을 각각 마무리한다.</p>
+          <p>실행 중에는 일반 도구 호출을 짧게 기록하고, 마감 시 작업 맥락을 보고 Artifact와 Evidence로 연결한다.</p>
         </div>
         <div class="flow" aria-label="에이전트 작업 7단계">
           <div class="step"><b>01</b><strong>WorkItem 조회</strong><p>목표, 상태, 다음 행동, 블로커와 완료 조건 확인</p></div>
-          <div class="step"><b>02</b><strong>Run 생성</strong><p>WorkItem을 진행 중으로 바꾸고 Trace 시작</p></div>
-          <div class="step"><b>03</b><strong>작업·검증</strong><p>코드, 테스트, 문서 결과를 Artifact로 등록</p></div>
-          <div class="step"><b>04</b><strong>Evidence 연결</strong><p>어떤 Artifact가 어떤 완료 조건을 증명하는지 연결</p></div>
-          <div class="step"><b>05</b><strong>종료 결과 판정</strong><p>Run과 WorkItem이 함께 이동할 상태를 결정</p></div>
-          <div class="step"><b>06</b><strong>원자적 종료</strong><p><code>finish_run()</code>이 두 상태를 한 트랜잭션에서 변경</p></div>
-          <div class="step"><b>07</b><strong>Event 기록</strong><p>두 상태 변경의 이유도 같은 트랜잭션에 추가</p></div>
+          <div class="step"><b>02</b><strong>Run 생성</strong><p><code>start_work()</code>로 WorkItem을 진행 중으로 변경</p></div>
+          <div class="step"><b>03</b><strong>도구 기록</strong><p>PostToolUse가 일반 도구 실행을 <code>run_tool_events</code>에 저장</p></div>
+          <div class="step"><b>04</b><strong>검토 계획</strong><p>마감 시 EVT별 Artifact·Evidence 판단을 Run별 JSON에 고정</p></div>
+          <div class="step"><b>05</b><strong>결과·근거 연결</strong><p>Artifact 등록과 Evidence 연결·완료 조건 판정</p></div>
+          <div class="step"><b>06</b><strong>검토 마감</strong><p><code>reviewed_at</code> 기록과 입력·결과 요약 제거</p></div>
+          <div class="step"><b>07</b><strong>Run 종료</strong><p><code>finish_run()</code>이 Run·WI 상태와 이력을 함께 변경</p></div>
         </div>
       </section>
 
@@ -620,41 +621,39 @@
           <article class="view"><code>next_work_items</code><p>실행 가능한 <code>ready</code> 작업을 priority와 created_at으로 정렬</p></article>
           <article class="view"><code>recent_activity</code><p>최근 State Event를 시간순으로 조회</p></article>
         </div>
-        <details style="margin-top:24px" open><summary>v1 기본 인덱스</summary><div><code>features(status)</code>, <code>work_items(status, priority)</code>, <code>work_items(feature_id, status)</code>, <code>acceptance_criteria(work_item_id, status)</code>, <code>runs(work_item_id, started_at)</code>, <code>UNIQUE INDEX runs_one_running_per_work_item ON runs(work_item_id) WHERE status = 'running'</code>, <code>artifacts(run_id, kind)</code>, <code>memory_candidates(run_id, status, created_at)</code>, <code>state_events(entity_type, entity_id, created_at)</code></div></details>
+        <details style="margin-top:24px" open><summary>주요 인덱스</summary><div><code>work_items(status, priority)</code>, <code>runs(work_item_id, started_at)</code>, <code>UNIQUE runs(work_item_id) WHERE status = 'running'</code>, <code>run_tool_events(run_id, created_at, id)</code>, <code>UNIQUE run_tool_events(run_id, tool_use_id)</code>, <code>UNIQUE run_tool_events(run_id, run_seq)</code>, <code>UNIQUE artifacts(run_id, source_event_id) WHERE source_event_id IS NOT NULL</code>, <code>artifacts(run_id, kind)</code>, <code>work_item_memos(work_item_id, is_pinned, sort_order, id)</code>, <code>work_item_memos(work_item_id, status, kind)</code>. 전체 정의는 <code>.harness/schema.sql</code>을 따른다.</div></details>
       </section>
 
       <section id="storage">
         <div class="section-head">
           <h2>정본과 파일 구성</h2>
-          <p>DB에는 작은 상태와 참조를, 다른 시스템에는 원본을 둔다. 같은 사실의 정본이 둘 이상 생기지 않게 하는 구분이다.</p>
+          <p>DB에는 현재 상태와 짧은 도구 기록을, 파일에는 재시도 가능한 검토 계획을 둔다.</p>
         </div>
         <div class="storage-map">
-          <article class="storage-col"><h3>상태 저장소에 저장</h3><ul><li>현재 상태, 다음 행동과 블로커</li><li>Acceptance Criterion과 Evidence 연결</li><li>Run intent·Recall 검색어·결과 요약·종료 이유와 Trace 참조</li><li>Artifact 위치와 검증 결과</li><li>검토 전 장기 기억 후보와 처리 상태</li></ul></article>
+          <article class="storage-col"><h3>상태 저장소에 저장</h3><ul><li>WI·Run의 현재 상태, 다음 행동과 블로커</li><li>Acceptance Criterion과 Evidence 연결</li><li>Run 의도·Recall 검색어·결과 요약·종료 이유</li><li>검토 전 EVT의 짧은 입력·결과 요약과 <code>reviewed_at</code></li><li>Artifact의 선택적 <code>uri</code>·원본 EVT 연결·검증 결과</li><li>장기 기억 후보와 WI 메모</li></ul></article>
           <div class="storage-divider">≠</div>
-          <article class="storage-col"><h3>원본 시스템에 저장</h3><ul><li>긴 설계 설명 → 문서·ADR</li><li>코드와 diff → Git</li><li>도구 출력과 MemoryGraph 검색·사용 내역 → Trace</li><li>테스트 전문·영상 → Artifact 원본 위치</li><li>검토된 기억 본문·관계 → MemoryGraph</li><li>커밋·PR·CI 결과 → Git/CI</li></ul></article>
+          <article class="storage-col"><h3>다른 원본·임시 파일</h3><ul><li>긴 설계 설명 → 문서·ADR</li><li>코드와 diff → Git</li><li>Run별 EVT 판단 → <code>.harness/review-plans/</code> JSON</li><li>검토된 기억 본문·관계 → MemoryGraph</li><li>커밋·PR·CI 결과 → Git/CI</li><li>도구 출력 전문과 모델 호출 Trace를 저장하는 전용 계층은 현재 없음</li></ul></article>
         </div>
         <pre><code>.harness/
   state.db               # 현재 상태와 State Event의 유일한 정본
   schema.sql             # 테이블, 제약, 인덱스, View 정의
   runtime/
     bindings/            # 세션별 session·turn·WorkItem·Run 임시 연결
-  traces/                # Run별 상세 Trace
-  artifacts/             # 로컬에 보관할 Artifact 원본
-  exports/
-    events.jsonl         # state_events에서 필요할 때 생성
-    status.md            # DB에서 필요할 때 생성하는 현황</code></pre>
-        <p style="margin:15px 0 0;color:var(--muted);font-size:.84rem"><code>state.db</code>와 <code>runtime/bindings/</code>는 로컬 작업 데이터라 Git에서 제외한다. Binding은 현재 Codex 세션이 어느 Run을 사용하는지 Hook에 알려 주는 임시 포인터이며 프로젝트 상태의 정본이 아니다. <code>schema.sql</code>은 재현 가능한 구조 정의이므로 Git으로 추적하고, <code>exports/</code>는 언제든 다시 만들 수 있는 파생물이다.</p>
+  selections/            # w/ 선택기 요청·결과 임시 파일
+  review-plans/          # Run별 EVT 검토 판단 JSON</code></pre>
+        <p style="margin:15px 0 0;color:var(--muted);font-size:.84rem"><code>state.db</code>, <code>runtime/bindings/</code>, <code>selections/</code>, <code>review-plans/</code>는 로컬 작업 데이터다. Binding은 현재 Codex 세션이 어느 Run을 사용하는지 Hook에 알려 주는 임시 포인터이며 상태의 정본이 아니다. Review Plan은 검토 판단을 재시도할 수 있도록 보존하고, Run 종료와 EVT 마감이 확인된 뒤 삭제한다. <code>schema.sql</code>은 Git으로 추적한다.</p>
       </section>
 
       <section id="connection">
         <div class="section-head">
           <h2>단일 DB 모듈과 SQLite 연결</h2>
-          <p>v1에서는 DB 연결·조회·상태 변경·무결성 검사를 <code>src/harness/state_store.py</code> 한 파일에 모은다. SQLite의 외래키 검사는 연결마다 적용되므로, 이 파일의 모든 DB 함수는 공통 <code>open_database()</code>를 통해서만 DB를 연다.</p>
+          <p>DB 연결·조회·상태 변경·무결성 검사는 <code>src/harness/state_store.py</code>가 맡는다. 검토 계획 파일은 <code>review_plans.py</code>, 세션 포인터는 <code>runtime_binding.py</code>가 관리한다. SQLite 외래키 검사는 연결마다 적용되므로 DB 함수는 공통 <code>open_database()</code>를 사용한다.</p>
         </div>
         <pre><code>src/harness/
   state_store.py        # 모든 DB 연결·조회·변경·검증 함수
   mcp_server.py         # Codex 도구를 state_store.py 함수에 연결
   runtime_binding.py    # 세션별 Binding 관리와 Run 소유자 확인
+  review_plans.py       # Run별 검토 계획 파일 저장·검증·정리
 
 .harness/
   schema.sql            # 테이블·제약·인덱스·View 정의
@@ -663,9 +662,9 @@
           <div class="principle"><b><code>state_store.py</code></b><p><code>open_database()</code>, WorkItem·Run·Artifact·Evidence·Memory Candidate의 생성과 조회, 상태 전이와 완료 검증 등 DB 관련 함수를 모두 담는 단일 내부 모듈이다.</p></div>
           <div class="principle"><b><code>mcp_server.py</code></b><p>Codex에 도구 이름과 입력 형식을 공개하고 대응하는 <code>state_store.py</code> 함수를 호출하는 얇은 연결부다. SQL과 상태 규칙을 중복 구현하지 않는다.</p></div>
           <div class="principle"><b><code>runtime_binding.py</code></b><p><code>.harness/runtime/bindings/&lt;session-id&gt;.json</code>을 원자적으로 생성·조회·삭제하고 Run의 소유 세션을 찾는다. 세션 소유권을 WorkItem이나 Run 테이블에 중복 저장하지 않으며 Hook은 Binding과 DB의 실제 상태를 함께 확인한다.</p></div>
-          <div class="principle"><b>분리 시점</b><p>v1에서는 파일을 미리 나누지 않는다. 실제 구현이 커져 한 파일의 탐색과 변경이 불편해질 때만 도메인별 모듈로 분리한다.</p></div>
+          <div class="principle"><b><code>review_plans.py</code></b><p>EVT 검토 계획을 Run별 JSON으로 저장·검증한다. 이미 처리한 Artifact·Evidence와 대조해 누락분을 복구하고, 마감된 파일만 삭제한다.</p></div>
         </div>
-        <p style="margin:18px 0 10px;color:var(--muted);font-size:.84rem"><strong>대표 DB 함수:</strong> <code>open_database()</code>, <code>create_work_item()</code>, <code>start_run()</code>, <code>finish_run()</code>, <code>close_work_item()</code>, <code>change_work_item_status()</code>, <code>create_artifact()</code>, <code>link_evidence()</code>, <code>pass_criterion()</code>, <code>create_candidate()</code>. 각 함수는 SQL 실행뿐 아니라 자신이 변경하는 상태의 규칙도 함께 검사한다.</p>
+        <p style="margin:18px 0 10px;color:var(--muted);font-size:.84rem"><strong>대표 DB 함수:</strong> <code>open_database()</code>, <code>create_work_item()</code>, <code>start_run()</code>, <code>record_run_tool_event()</code>, <code>create_artifact()</code>, <code>verify_criterion_with_evidence()</code>, <code>mark_tool_events_reviewed()</code>, <code>finish_run()</code>, <code>close_work_item()</code>, <code>create_candidate()</code>, <code>create_work_item_memo()</code>. 상태 변경과 검증 규칙은 각 함수가 검사한다.</p>
         <div class="flow" aria-label="공통 SQLite 연결 생성 흐름">
           <div class="step"><b>01</b><strong>경로 결정</strong><p>저장소 루트의 <code>.harness/state.db</code>를 선택</p></div>
           <div class="step"><b>02</b><strong>연결 생성</strong><p>SQLite 데이터베이스 연결을 한 번 생성</p></div>
@@ -704,16 +703,16 @@
         <details><summary>여러 Codex 세션이 동시에 작업할 수 있나?</summary><div>서로 다른 WorkItem은 세션별 Binding과 Run을 사용해 병렬 실행할 수 있다. 같은 WorkItem에는 DB가 running Run을 하나만 허용하므로 먼저 시작한 세션만 작업한다. 다른 세션은 새 Run이나 Binding을 만들지 않고 원래 세션에서 이어서 작업하라는 안내를 받는다.</div></details>
         <details><summary>다른 세션이 비정상 종료돼 WorkItem이 잠기면?</summary><div>시간 만료나 자동 takeover로 추측하지 않는다. Codex가 충돌을 설명하고 “해당 세션이 이미 종료됐다면, 남은 Run을 <code>interrupted</code>로 종료하고 WI 잠금을 해제할까요?”라고 묻는다. 사용자가 명시적으로 동의하면 <code>recover_abandoned_work(work_item_id, expected_run_id)</code>가 조회 당시의 정확한 Run만 중단 처리하고 WorkItem을 기존 <code>next_action</code>이 있는 <code>ready</code>로 원자적으로 되돌린다. 이는 기존 Run의 정상 성공 종료나 재개가 아니다. 이후 현재 세션의 새 Run은 <code>start_work()</code>로 별도 생성한다.</div></details>
         <details><summary>실패하거나 아직 검증 중인 Artifact도 완료 근거가 되나?</summary><div>안 된다. <code>pass_criterion()</code>은 같은 WorkItem에서 나온 Evidence 중 <code>verification_status</code>가 <code>passed</code> 또는 <code>not_applicable</code>인 Artifact가 하나 이상 있을 때만 조건을 <code>passed</code>로 바꾼다. 과거의 실패 Artifact가 남아 있어도 별도의 유효한 Artifact가 있으면 통과할 수 있다.</div></details>
-        <details><summary>Run 요약에 전체 작업 과정을 적나?</summary><div>아니다. 다음 Run이 이어서 일할 수 있는 짧은 결과만 적는다. 상세 도구 호출과 원본 출력은 <code>trace_ref</code>가 가리키는 Trace에서 찾는다.</div></details>
+        <details><summary>Run 요약에 전체 작업 과정을 적나?</summary><div>아니다. 다음 Run이 이어서 일할 수 있는 짧은 결과만 적는다. 일반 도구 실행 목록은 <code>run_tool_events</code>에서 확인한다. 각 EVT에는 입력·결과의 짧은 요약만 임시로 남기며 검토가 끝나면 요약을 제거한다. 출력 전문을 저장하는 Trace 계층은 현재 없다.</div></details>
         <details><summary>성공한 Run 뒤에도 WorkItem을 계속할 수 있나?</summary><div>가능하다. 모든 성공 Run은 <code>finish_work(outcome="progressed")</code>로 끝나고 WorkItem은 <code>ready</code>로 돌아간다. AC 기준으로 완료 가능하면 <code>completion_recommended=true</code>가 고정 안내 문구를 저장한다. 사용자가 결과를 확인하면 웹 콘솔 또는 <code>close_work_item()</code>으로 별도 완료하며, 추가 작업이 있으면 같은 WI에서 새 Run을 시작한다.</div></details>
-        <details><summary>장기 기억 후보의 관계는 어디에 적나?</summary><div>후보 DB에는 적지 않는다. 같은 Run의 후보는 <code>run_id</code>로 함께 찾고, 종료 전 검토가 기존 MemoryGraph 기억까지 비교해 실제 관계만 MemoryGraph에 직접 저장한다.</div></details>
-        <details><summary>State Event와 Trace는 같은가?</summary><div>다르다. State Event는 상태가 언제 왜 바뀌었는지 남기는 작은 감사 기록이고, Trace는 한 Run 안의 모델·도구 호출을 담는 상세 실행 기록이다.</div></details>
+        <details><summary>장기 기억 후보가 pending이면 Run을 종료할 수 없나?</summary><div>종료할 수 있다. <code>$work-finish</code>는 후보를 검토하지만, 처리하지 못한 후보가 남아도 Run 종료를 차단하지 않는다. 남은 후보와 이유를 사용자에게 알린다. 후보 관계는 이 DB에 별도 저장하지 않고 최종 기억을 MemoryGraph에 저장할 때 판단한다.</div></details>
+        <details><summary>State Event와 Run Tool Event는 같은가?</summary><div>다르다. <code>state_events</code>는 주요 작업 상태 변경의 감사 기록이다. <code>run_tool_events</code>는 활성 Run에서 실행한 일반 도구의 짧은 기록이다. WI 메모와 도구 기록 자체는 State Event에 추가하지 않는다.</div></details>
       </section>
 
       <aside class="final-note">
-        <p><strong>핵심:</strong> SQLite는 현재 상태, 변경 이력과 검토 전 기억 후보의 정본이다. 문서는 구조를 설명하고, Git과 Artifact는 결과를 증명하며, Trace는 실행을 기록하고, MemoryGraph는 검토를 통과한 이유와 경험을 보존한다.</p>
+        <p><strong>핵심:</strong> SQLite는 현재 상태, 주요 변경 이력, 도구 실행 기록과 기억 후보의 정본이다. Review Plan은 도구 기록의 Artifact·Evidence 판단을 임시 JSON으로 보존한다. Git은 코드의 원본, MemoryGraph는 검토된 장기 기억의 저장소다.</p>
       </aside>
-      <footer><span>Harness v2 · State Store v1 design</span><a href="./docs-index.html">문서 허브로 돌아가기</a></footer>
+      <footer><span>Harness v2 · Current State Store</span><a href="./docs-index.html">문서 허브로 돌아가기</a></footer>
     </main>
   </div>
 
@@ -731,10 +730,10 @@
         {
           name: 'work_items', title: 'WorkItem', summary: '설계·조사·의사결정·구현·검증 중 독립적인 목표와 완료 조건을 가진 작업 한 건이다.',
           fields: [
-            ['id','TEXT PK','yes','작업 ID, 예: HW-12'],['feature_id','TEXT FK','no','소속 Feature; 프로젝트 공통 작업이면 비움'],['title','TEXT','yes','작업 제목'],['kind','TEXT','yes','implementation, bug, research 같은 작업 종류'],['goal','TEXT','yes','이 작업으로 만들어야 할 결과'],['status','TEXT','yes','현재 진행 단계'],['priority','TEXT','yes','urgent, high, normal, low 중 하나; 기본값 normal'],['next_action','TEXT','conditional','ready·in_progress·blocked에서 필요한 다음 행동; backlog에서는 선택'],['block_reason','TEXT','conditional','막힌 이유와 해제 조건'],['created_at','TEXT','yes','생성 시각'],['updated_at','TEXT','yes','마지막 변경 시각'],['started_at','TEXT','no','최초 작업 시작 시각'],['closed_at','TEXT','conditional','done 또는 cancelled가 된 시각']
+            ['id','TEXT PK','yes','작업 ID, 예: WI-abc123'],['feature_id','TEXT FK','no','소속 Feature; 프로젝트 공통 작업이면 비움'],['title','TEXT','yes','작업 제목'],['kind','TEXT','yes','implementation, bug, research 같은 작업 종류'],['goal','TEXT','yes','이 작업으로 만들어야 할 결과'],['description','TEXT','no','작업 배경이나 범위에 관한 추가 설명'],['is_draft','INTEGER','yes','1이면 아직 구체화 중인 Draft, 0이면 일반 WI'],['status','TEXT','yes','현재 진행 단계'],['priority','TEXT','yes','urgent, high, normal, low 중 하나; 기본값 normal'],['next_action','TEXT','conditional','ready·in_progress·blocked에서 필요한 다음 행동; backlog에서는 선택'],['block_reason','TEXT','conditional','막힌 이유와 해제 조건'],['created_at','TEXT','yes','생성 시각'],['updated_at','TEXT','yes','마지막 변경 시각'],['started_at','TEXT','no','최초 작업 시작 시각'],['closed_at','TEXT','conditional','done 또는 cancelled가 된 시각']
           ],
           values: ['kind: implementation · bug · research · decision · refactor · migration · verification · maintenance','status: backlog · ready · in_progress · blocked · done · cancelled','priority: urgent · high · normal · low, 기본값 normal'],
-          constraints: ['Project는 현재 저장소로 암묵적으로 정해지므로 project_id를 저장하지 않는다.','단일 에이전트 구조이므로 담당자를 WorkItem에 중복 저장하지 않는다. 상세 실행과 실행 주체는 Run의 trace_ref가 가리키는 Trace에서 확인한다.','WorkItem 계층과 별도 의존 관계는 두지 않는다. 작업 순서는 status, next_action, block_reason으로 관리한다.','priority는 urgent → high → normal → low 순서다. 같은 등급이면 created_at이 오래된 WorkItem을 먼저 선택한다.','backlog에서는 next_action이 선택 사항이다.','ready와 in_progress에는 비어 있지 않은 next_action이 필요하다.','blocked에는 block_reason과 막힘 해제를 위한 next_action이 모두 필요하다.','done과 cancelled에서는 next_action을 비워 둔다.','running Run이 있으면 finish_run() 외의 경로로 ready, blocked, done, cancelled 상태로 변경할 수 없다.','done은 Acceptance Criterion이 하나 이상 있고 모든 조건이 passed 또는 waived이며, passed 조건마다 verification_status가 passed 또는 not_applicable인 Evidence Artifact가 하나 이상 있을 때만 가능하다.','done 또는 cancelled에는 closed_at이 필요하다.']
+          constraints: ['Project는 현재 저장소로 암묵적으로 정해지므로 project_id를 저장하지 않는다.','is_draft=1인 WI는 backlog에서 구체화하며 완료 조건 없이 만들 수 있다. 구체화 후 일반 WI로 전환한다.','WorkItem 계층과 별도 의존 관계는 두지 않는다. 작업 순서는 status, next_action, block_reason으로 관리한다.','priority는 urgent → high → normal → low 순서다. 같은 등급이면 created_at이 오래된 WorkItem을 먼저 선택한다.','backlog에서는 next_action이 선택 사항이다.','ready와 in_progress에는 비어 있지 않은 next_action이 필요하다.','blocked에는 block_reason과 막힘 해제를 위한 next_action이 모두 필요하다.','done과 cancelled에서는 next_action을 비워 둔다.','running Run이 있으면 finish_run() 외의 경로로 ready, blocked, done, cancelled 상태로 변경할 수 없다.','done은 Acceptance Criterion이 하나 이상 있고 모든 조건이 passed 또는 waived이며, passed 조건마다 verification_status가 passed 또는 not_applicable인 Evidence Artifact가 하나 이상 있을 때만 가능하다.','done 또는 cancelled에는 closed_at이 필요하다.']
         },
         {
           name: 'acceptance_criteria', title: 'Acceptance Criterion', summary: 'WorkItem이 검증됐는지를 개별적으로 판정하는 완료 조건이다.',
@@ -747,18 +746,26 @@
         {
           name: 'runs', title: 'Run', summary: '하나의 WorkItem을 수행하려는 한 번의 에이전트 실행 시도다.',
           fields: [
-            ['id','TEXT PK','yes','우리 상태 저장소에서 실행을 구분하는 ID'],['work_item_id','TEXT FK','yes','수행 대상 WorkItem ID'],['intent','TEXT','yes','사람이 읽을 수 있는 이번 Run의 짧은 작업 요약'],['recall_query','TEXT','yes','장기 기억 검색에 그대로 쓸 공백 구분 핵심어 문자열'],['status','TEXT','yes','running, succeeded, failed, interrupted, cancelled 중 하나'],['started_at','TEXT','yes','시작 시각'],['ended_at','TEXT','conditional','실행이 끝난 시각'],['summary','TEXT','conditional','다음 Run이 읽을 수 있는 짧은 실행 결과'],['termination_reason','TEXT','conditional','실패·중단·취소로 종료된 직접 이유'],['trace_ref','TEXT','no','Codex 세션을 포함한 상세 Trace의 파일 경로나 외부 ID']
+            ['id','TEXT PK','yes','우리 상태 저장소에서 실행을 구분하는 ID'],['work_item_id','TEXT FK','yes','수행 대상 WorkItem ID'],['intent','TEXT','yes','사람이 읽을 수 있는 이번 Run의 짧은 작업 요약'],['recall_query','TEXT','yes','장기 기억 검색에 그대로 쓸 공백 구분 핵심어 문자열'],['status','TEXT','yes','running, succeeded, failed, interrupted, cancelled 중 하나'],['started_at','TEXT','yes','시작 시각'],['ended_at','TEXT','conditional','실행이 끝난 시각'],['summary','TEXT','conditional','다음 Run이 읽을 수 있는 짧은 실행 결과'],['termination_reason','TEXT','conditional','실패·중단·취소로 종료된 직접 이유'],['trace_ref','TEXT','no','외부 추적 자료 참조용 선택 필드; 현재 자동 생성되지 않음']
           ],
           values: ['status: running · succeeded · failed · interrupted · cancelled'],
           constraints: ['start_run()은 비어 있지 않은 intent와 recall_query를 요구한다. Hook은 intent에서 검색어를 추측하지 않는다.','running이면 ended_at, summary, termination_reason이 비어 있어야 한다.','동일한 WorkItem에는 running Run을 최대 하나만 허용하며 부분 UNIQUE 인덱스로 강제한다.','종료 상태에는 ended_at과 summary가 필요하다.','failed, interrupted, cancelled에는 termination_reason이 반드시 필요하다.','succeeded에서는 termination_reason을 비워 둔다.','succeeded Run은 새 next_action이 있는 ready WorkItem과만 조합한다. WI의 done은 사용자 요청의 별도 close_work_item()이 처리한다.','finish_run()은 Run 종료, WorkItem 상태 변경과 State Event 기록을 하나의 트랜잭션으로 처리한다.']
         },
         {
-          name: 'artifacts', title: 'Artifact', summary: 'Run이 남긴 커밋, 파일, 테스트처럼 위치를 참조하고 검증할 수 있는 결과다.',
+          name: 'run_tool_events', title: 'Run Tool Event', summary: 'PostToolUse가 활성 Run의 일반 도구 사용을 기계적으로 기록한다. work-finish의 결과 검토 목록이다.',
           fields: [
-            ['id','TEXT PK','yes','Artifact를 구분하는 ID'],['run_id','TEXT FK','yes','이 결과를 만든 Run ID'],['kind','TEXT','yes','파일, 커밋, 테스트 같은 산출물 종류'],['uri','TEXT','yes','Git SHA, URL 또는 로컬 파일 경로'],['verification_status','TEXT','yes','not_applicable, pending, passed, failed 중 하나'],['summary','TEXT','yes','결과의 핵심만 담은 짧은 설명'],['created_at','TEXT','yes','등록 시각']
+            ['id','TEXT PK','yes','도구 사용 기록 ID'],['tool_use_id','TEXT','yes','원본 Hook 도구 호출 ID; 중복 기록 방지'],['run_id','TEXT FK','yes','도구를 사용한 Run ID'],['run_seq','INTEGER','yes','해당 Run 안에서의 실행 순서'],['tool_name','TEXT','yes','실행된 도구 이름'],['tool_family','TEXT','yes','도구의 대략적인 분류'],['status','TEXT','yes','도구 실행의 성공·실패·미확인 상태'],['exit_code','INTEGER','no','셸 명령의 종료 코드; 해당 없으면 비움'],['input_summary','TEXT','yes','도구 입력의 짧은 요약; 검토 후 빈 문자열로 지움'],['result_summary','TEXT','yes','실행 결과의 짧은 요약; 검토 후 빈 문자열로 지움'],['reviewed_at','TEXT','no','Artifact·Evidence 등록 필요성을 검토한 시각'],['created_at','TEXT','yes','기록 생성 시각']
+          ],
+          values: ['tool_family: bash · file_edit · mcp · lifecycle · other','status: succeeded · failed · unknown'],
+          constraints: ['(run_id, tool_use_id)와 (run_id, run_seq)는 각각 UNIQUE다.','input_summary는 최대 512자, result_summary는 최대 1024자다.','reviewed_at이 비어 있으면 미검토 기록이다. 최종 검토 트랜잭션은 reviewed_at을 채우고 두 요약을 빈 문자열로 바꾼다.','Artifact 승격 여부와 무관하게 일반 도구 사용을 기록한다. harness-state·harness-memory MCP 도구는 기록 대상에서 제외한다.']
+        },
+        {
+          name: 'artifacts', title: 'Artifact', summary: 'Run이 남긴 커밋, 파일, 테스트처럼 검토할 가치가 있는 작업 결과다.',
+          fields: [
+            ['id','TEXT PK','yes','Artifact를 구분하는 ID'],['run_id','TEXT FK','yes','이 결과를 만든 Run ID'],['kind','TEXT','yes','파일, 커밋, 테스트 같은 산출물 종류'],['uri','TEXT','no','확인 가능한 위치·명령 참조; 알 수 없으면 비움'],['source_event_id','TEXT FK','no','이 Artifact의 근거가 된 Run Tool Event ID'],['verification_status','TEXT','yes','not_applicable, pending, passed, failed 중 하나'],['summary','TEXT','yes','결과의 핵심만 담은 짧은 설명'],['created_at','TEXT','yes','등록 시각']
           ],
           values: ['kind: file · commit · test_run · lint_run · build_run · pull_request · deployment · screenshot · report · other','verification_status: not_applicable · pending · passed · failed'],
-          constraints: ['본문, 테스트 전문과 세부 수치는 DB에 넣지 않는다.','metadata_json은 두지 않으며 핵심 결과는 summary, 상세 내용은 uri가 가리키는 Artifact 원본 또는 Trace에서 확인한다.','보관·정리 정책은 DB 필드가 아니라 별도 Artifact 관리 로직이 담당한다.','test_run, lint_run, build_run에는 not_applicable을 사용할 수 없다.','pending은 passed 또는 failed로만 확정하며, 확정된 verification_status는 바꾸지 않는다. 다시 검증하면 새 Artifact를 만든다.','work_item_id를 중복 저장하지 않고 Run을 통해 계산한다.','(run_id, kind, uri) 조합은 중복 등록하지 않는다.']
+          constraints: ['본문, 테스트 전문과 세부 수치는 DB에 넣지 않는다.','metadata_json은 두지 않는다. 핵심 결과는 summary에, 확인 가능한 참조가 있을 때만 uri에 담는다.','uri가 있다면 빈 문자열일 수 없다. 실행형 결과의 명령 참조는 정해진 command: 형식을 따른다.','test_run, lint_run, build_run에는 not_applicable을 사용할 수 없다.','pending은 passed 또는 failed로만 확정하며, 확정된 verification_status는 바꾸지 않는다. 다시 검증하면 새 Artifact를 만든다.','work_item_id를 중복 저장하지 않고 Run을 통해 계산한다.','source_event_id가 있다면 같은 Run 안에서 한 Event는 Artifact 하나에만 연결한다.']
         },
         {
           name: 'criterion_evidence', title: 'Evidence Link', summary: 'Acceptance Criterion을 어떤 Artifact가 증명하는지 나타내는 연결이다.',
@@ -774,7 +781,7 @@
             ['id','INTEGER PK','yes','시간순으로 증가하는 이벤트 번호'],['entity_type','TEXT','yes','feature, work_item, run, acceptance_criterion, artifact 중 하나'],['entity_id','TEXT','yes','변경된 대상 ID'],['event_type','TEXT','yes','created, status_changed, evidence_linked 같은 사건 종류'],['from_status','TEXT','no','변경 전 상태'],['to_status','TEXT','no','변경 후 상태'],['run_id','TEXT FK','no','이 변경을 일으킨 Run ID'],['actor','TEXT','yes','변경한 사용자·에이전트·Hook 이름'],['reason','TEXT','no','변경 이유'],['payload_json','TEXT','no','상태 외의 작은 추가 변경 정보'],['created_at','TEXT','yes','이벤트 발생 시각']
           ],
           values: ['append-only: 기존 행 수정 없이 새 행만 추가'],
-          constraints: ['상태 변경과 Event 추가는 하나의 SQLite 트랜잭션으로 처리한다.','state_events의 UPDATE와 DELETE를 금지한다.']
+          constraints: ['주요 상태 변경과 Event 추가는 하나의 SQLite 트랜잭션으로 처리한다.','state_events의 UPDATE와 DELETE를 금지한다.','메모 수정이나 일반 도구 사용 기록은 이 테이블에 남기지 않는다.']
         },
         {
           name: 'memory_candidates', title: 'Memory Candidate', summary: 'Run 중 발견한 장기 기억 후보를 실제 저장 전까지 가볍게 보관하는 초안이다.',
@@ -782,7 +789,15 @@
             ['id','TEXT PK','yes','후보를 구분하는 변경되지 않는 ID'],['run_id','TEXT FK','yes','이 후보를 발견한 Run ID'],['proposed_type','TEXT','yes','MemoryGraph에 저장할 기억 종류 초안'],['title','TEXT','yes','검색하기 쉬운 200자 이하 제목'],['content','TEXT','yes','장기 기억으로 남길 핵심 내용'],['keywords_json','TEXT JSON','yes','검색과 분류에 사용할 짧은 키워드 목록'],['status','TEXT','yes','pending, promoted, rejected 중 하나'],['memory_ref','TEXT','conditional','저장된 실제 MemoryGraph 기억 ID'],['storage_plan_json','TEXT JSON','no','최초 검증을 통과한 MemoryGraph 쓰기 계획 원문'],['plan_fingerprint','TEXT','no','같은 계획 재시도인지 확인하는 64자 SHA-256 지문'],['created_at','TEXT','yes','후보 생성 시각']
           ],
           values: ['status: pending · promoted · rejected','후보는 발견 즉시 한 건씩 저장'],
-          constraints: ['keywords_json은 유효한 JSON이어야 하고 최상위 타입이 배열이어야 한다.','키워드 배열의 모든 원소가 문자열인지 저장 도구가 추가로 검사한다.','storage_plan_json과 plan_fingerprint는 함께 비거나 함께 존재하며 최초 Plan 뒤 다른 지문으로 바꾸지 않는다.','후보 관계는 이 DB에 저장하지 않는다.','pending·rejected에서는 memory_ref가 비어 있고 promoted에서는 필요하다.','최종 검토가 기존 기억과 비교해 MemoryGraph 노드와 관계를 확정한다.','세부 정본은 memory-candidate-schema.html을 따른다.']
+          constraints: ['keywords_json은 유효한 JSON이어야 하고 최상위 타입이 배열이어야 한다.','키워드 배열의 모든 원소가 문자열인지 저장 도구가 추가로 검사한다.','storage_plan_json과 plan_fingerprint는 함께 비거나 함께 존재하며 최초 Plan 뒤 다른 지문으로 바꾸지 않는다.','후보 관계는 이 DB에 저장하지 않는다.','pending·rejected에서는 memory_ref가 비어 있고 promoted에서는 필요하다.','pending 후보가 남아 있어도 Run 종료를 막지 않는다.','최종 검토가 기존 기억과 비교해 MemoryGraph 노드와 관계를 확정한다.','세부 정본은 long-term-memory-schema.html을 따른다.']
+        },
+        {
+          name: 'work_item_memos', title: 'WorkItem Memo', summary: 'WI에 연결된 사람이 작성하는 메모다. 여러 메모를 순서대로 보관한다.',
+          fields: [
+            ['id','TEXT PK','yes','메모 ID'],['work_item_id','TEXT FK','yes','메모가 속한 WI ID'],['title','TEXT','yes','메모 제목; 공백 제외 1~200자'],['content','TEXT','yes','Markdown 형식의 메모 본문'],['kind','TEXT','yes','메모의 성격을 나타내는 종류'],['author','TEXT','yes','작성자 이름; 입력하지 않으면 anon'],['status','TEXT','yes','open 또는 closed'],['is_pinned','INTEGER','yes','1이면 상단 고정, 0이면 일반'],['is_model_visible','INTEGER','yes','1이면 모델에게 보여줄 수 있음, 0이면 제외'],['sort_order','INTEGER','yes','같은 WI 안에서의 표시 순서'],['created_at','TEXT','yes','생성 시각'],['updated_at','TEXT','yes','마지막 수정 시각']
+          ],
+          values: ['kind: general · decision · problem · idea · question · reference','status: open · closed','is_pinned · is_model_visible: 0 또는 1'],
+          constraints: ['(work_item_id, sort_order)는 UNIQUE이며 sort_order는 0 이상이다.','삭제 시 행을 바로 제거한다. deleted_at이나 버전 열은 두지 않는다.','메모 생성·수정·삭제는 State Event에 기록하지 않는다.']
         }
       ];
 

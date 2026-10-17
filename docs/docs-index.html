@@ -298,7 +298,7 @@
         <p class="lede">하네스의 설계 결정, 상태 관리 방식과 장기 기억 구조를 한곳에서 찾는다. 카드를 클릭하면 해당 문서로 이동한다.</p>
       </div>
       <div class="summary" aria-label="문서 현황">
-        <div class="metric"><strong>18</strong><span>등록된 문서</span></div>
+        <div class="metric"><strong>10</strong><span>등록된 문서</span></div>
         <div class="metric"><strong>3</strong><span>문서 범주</span></div>
       </div>
     </header>
@@ -309,7 +309,7 @@
       <button class="filter" type="button" data-filter="overview" aria-pressed="false">개요</button>
       <button class="filter" type="button" data-filter="workflow" aria-pressed="false">작업·상태</button>
       <button class="filter" type="button" data-filter="memory" aria-pressed="false">장기 기억</button>
-      <span class="result-count" id="result-count" aria-live="polite">18개 표시</span>
+      <span class="result-count" id="result-count" aria-live="polite">10개 표시</span>
     </div>
 
     <section class="group" data-group="overview">
@@ -356,33 +356,12 @@
           <p>한 요청에서 Hook·MCP·Skill이 언제 상태를 읽고 실행·검증·종료하는지 보여준다.</p>
           <span class="filename">single-request-pipeline.html</span>
         </a>
-        <a class="doc-card featured" data-category="workflow" data-search="run tool events posttooluse artifact source event uri optional evidence schema 실행 이벤트 아티팩트" href="./run-tool-events-artifact-schema.html">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Event · Artifact schema</span></div>
-          <h3>Run Tool Events · Artifact 스키마</h3>
-          <p>PostToolUse 실행 사실을 가볍게 저장하고, work-finish에서 필요한 결과만 Artifact·Evidence로 연결하는 계약이다.</p>
-          <span class="filename">run-tool-events-artifact-schema.html</span>
-        </a>
-        <a class="doc-card" data-category="workflow" data-search="fzf workitem 선택 외부 터미널 userpromptsubmit hook work 접두사" href="./viewer.html?file=mcp-elicitation.md">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Terminal selection</span></div>
-          <h3>fzf · WI 선택</h3>
-          <p><code>w/</code> 요청에서 외부 터미널의 fzf로 WI를 직접 고르는 UPS 흐름을 쉽게 설명한다.</p>
-          <span class="filename">mcp-elicitation.md</span>
-        </a>
         <a class="doc-card" data-category="workflow" data-search="draft workitem 초안 웹 콘솔 생성 title kind goal description is draft" href="./viewer.html?file=draft-work-items.md">
           <span class="arrow" aria-hidden="true">↗</span>
           <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Draft creation</span></div>
           <h3>Draft WorkItem</h3>
           <p>웹 콘솔에서 가볍게 할 일을 만들고, Codex가 실행 가능한 작업으로 다듬는 규칙을 정리한다.</p>
           <span class="filename">draft-work-items.md</span>
-        </a>
-        <a class="doc-card featured" data-category="workflow" data-search="사용자 명시적 완료 workitem ready in progress done run 성공 close 종료 권한" href="./viewer.html?file=user-controlled-work-item-completion.md">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Completion policy</span></div>
-          <h3>사용자 명시적 WI 완료</h3>
-          <p>Run 성공 후 WI를 ready로 유지하고, 웹 콘솔이나 사용자의 명시적 요청으로만 done 처리하는 기준이다.</p>
-          <span class="filename">user-controlled-work-item-completion.md</span>
         </a>
         <a class="doc-card" data-category="workflow" data-search="git worktree state db memorygraph sqlite 공유 저장소 경로 설계 이행" href="./viewer.html?file=research/worktree-shared-db-design.md">
           <span class="arrow" aria-hidden="true">↗</span>
@@ -402,56 +381,21 @@
     </section>
 
     <section class="group" data-group="memory">
-      <div class="group-head"><h2>장기 기억</h2><p>후보 생성부터 MemoryGraph 저장과 연결까지</p></div>
+      <div class="group-head"><h2>장기 기억</h2><p>운영·구현과 스키마를 두 문서로 나누어 관리</p></div>
       <div class="card-grid">
-        <a class="doc-card featured" data-category="memory" data-search="memorygraph recall wrapper 구현 계획 submodule sqlitebackend searchmemories 버전 32 결정" href="./memorygraph-wrapper-plan.html">
+        <a class="doc-card featured" data-category="memory" data-search="장기 기억 memorygraph recall 후보 검토 저장 실패 버전 운영 구현" href="./long-term-memory.html">
           <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Implementation baseline</span></div>
-          <h3>MemoryGraph Recall Wrapper</h3>
-          <p>32개 결정과 고정 버전, 검색·병합·출력 계약을 모아 바로 구현할 수 있게 정리한다.</p>
-          <span class="filename">memorygraph-wrapper-plan.html</span>
+          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Operations &amp; implementation</span></div>
+          <h3>장기기억 운영·구현</h3>
+          <p>기억 조회부터 후보 기록·검토·저장까지 현재 동작과 실패 정책, 버전 선택 근거를 설명한다.</p>
+          <span class="filename">long-term-memory.html</span>
         </a>
-        <a class="doc-card featured" data-category="memory" data-search="memorygraph 장기 기억 저장 도구 mcp inspect finalize create merge reject relationship retry partial 설계" href="./memorygraph-storage-tool-design.html">
+        <a class="doc-card featured" data-category="memory" data-search="장기 기억 memorygraph 스키마 memory candidates 타입 관계 저장 계획 필드" href="./long-term-memory-schema.html">
           <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Storage tool design</span></div>
-          <h3>MemoryGraph 저장 도구 설계</h3>
-          <p>후보 비교와 최종 저장을 두 도구로 나누고, 병합·관계·부분 실패를 안전하게 처리하는 방법을 설명한다.</p>
-          <span class="filename">memorygraph-storage-tool-design.html</span>
-        </a>
-        <a class="doc-card featured" data-category="memory" data-search="urgent 응급 memorygraph 운영 보강 후보 생성 우회 차단 merge 보존 sqlite 종단간 테스트" href="./viewer.html?file=URGENT-memorygraph-operational-hardening.md">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Urgent hardening</span></div>
-          <h3>🚨 MemoryGraph 운영 보강</h3>
-          <p>후보 입력 통일, 우회 차단, 안전한 병합과 실제 SQLite 종단 간 검증까지 남은 네 가지를 정리한다.</p>
-          <span class="filename">URGENT-memorygraph-operational-hardening.md</span>
-        </a>
-        <a class="doc-card" data-category="memory" data-search="장기 기억 운영 전략 memorygraph hook skill" href="./viewer.html?file=long-term-memory.md">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Strategy</span></div>
-          <h3>장기 기억</h3>
-          <p>MemoryGraph에 어떤 경험을 남기고, Codex Hook과 스킬이 어떻게 나누어 쓰는지 설명한다.</p>
-          <span class="filename">long-term-memory.md</span>
-        </a>
-        <a class="doc-card featured" data-category="memory" data-search="장기 기억 후보 스키마 db 내용 단건 즉시 저장 staging sqlite interactive" href="./memory-candidate-schema.html">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Interactive staging schema</span></div>
-          <h3>장기 기억 후보 스키마</h3>
-          <p>기억 후보의 경량 필드와 즉시 단건 저장·최종 검토 흐름을 검색과 다이어그램으로 살펴본다.</p>
-          <span class="filename">memory-candidate-schema.html</span>
-        </a>
-        <a class="doc-card featured" data-category="memory" data-search="memorygraph 기본 스키마 노드 기억 관계 타입 확장" href="./memorygraph-schema.html">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Interactive schema</span></div>
-          <h3>MemoryGraph 기본 스키마</h3>
-          <p>MemoryGraph의 기억·관계 종류와 확장 제약을 검색·필터·다이어그램으로 살펴본다.</p>
-          <span class="filename">memorygraph-schema.html</span>
-        </a>
-        <a class="doc-card" data-category="memory" data-search="memorygraph version selection SQLiteBackend searchMemories v0.13.0 wrapper" href="./viewer.html?file=research/memorygraph-version-selection.md">
-          <span class="arrow" aria-hidden="true">↗</span>
-          <div class="card-meta"><span class="badge">Markdown</span><span class="topic">Version research</span></div>
-          <h3>MemoryGraph 버전 선택 조사</h3>
-          <p>Recall Wrapper(장기 기억 검색 모듈)에서 쓸 MemoryGraph(장기 기억 저장소) 버전을 릴리스·테스트 근거와 비교해 제안한다.</p>
-          <span class="filename">research/memorygraph-version-selection.md</span>
+          <div class="card-meta"><span class="badge html">HTML</span><span class="topic">Schema reference</span></div>
+          <h3>장기기억 스키마</h3>
+          <p>MemoryGraph 기억·관계와 State DB의 장기기억 후보·저장 계획 필드를 함께 정의한다.</p>
+          <span class="filename">long-term-memory-schema.html</span>
         </a>
       </div>
     </section>
