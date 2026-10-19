@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -14,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import state_store
 from .overview_api import create_router as create_overview_router
+from .memory_graph_api import create_router as create_memory_graph_router
 from .runs_api import create_router as create_runs_router
 from .work_items_api import create_router
 
@@ -34,6 +36,7 @@ def _error_response(
 
 def create_app(
     database_path: str | Path = state_store.DEFAULT_DATABASE_PATH,
+    memory_database_path: str | Path | None = None,
 ) -> FastAPI:
     """Create a local control-center app bound to one state-store database."""
 
@@ -52,6 +55,8 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.database_path = selected_database
+    application.state.memory_database_path = Path(memory_database_path or os.environ.get("HARNESS_MEMORY_DB_PATH") or selected_database.with_name("memorygraph.db"))
+    application.include_router(create_memory_graph_router())
     application.include_router(create_router())
     application.include_router(create_overview_router())
     application.include_router(create_runs_router())

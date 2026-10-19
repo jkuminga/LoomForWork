@@ -723,8 +723,10 @@ function filteredItems() {
 
 function renderItems() {
   const items = filteredItems();
-  elements.visibleCount.textContent = `${items.length} visible`;
-  elements.dockSummary.textContent = `전체 ${state.items.length}개 · 화면 ${items.length}개`;
+  if (state.currentView === "work-items") {
+    elements.visibleCount.textContent = `${items.length} visible`;
+    elements.dockSummary.textContent = `전체 ${state.items.length}개 · 화면 ${items.length}개`;
+  }
   elements.itemsList.innerHTML = "";
 
   if (items.length === 0) {
@@ -1568,20 +1570,25 @@ async function switchView(view, selectedWorkItemId = null, selectedRunId = null)
   state.currentView = view;
   const isOverview = view === "overview";
   const isRuns = view === "runs";
+  const isMemory = view === "memory-graph";
+  document.querySelector("#memory-graph-view").classList.toggle("hidden", !isMemory);
+  document.querySelector("#nav-memory-graph").classList.toggle("active", isMemory);
+  document.querySelector("#nav-memory-graph").toggleAttribute("aria-current", isMemory);
   elements.overviewView.classList.toggle("hidden", !isOverview);
-  elements.workItemsView.classList.toggle("hidden", isOverview || isRuns);
+  elements.workItemsView.classList.toggle("hidden", isOverview || isRuns || isMemory);
   elements.runsView.classList.toggle("hidden", !isRuns);
   document.querySelector("#nav-overview").classList.toggle("active", isOverview);
-  document.querySelector("#nav-work-items").classList.toggle("active", !isOverview && !isRuns);
+  document.querySelector("#nav-work-items").classList.toggle("active", !isOverview && !isRuns && !isMemory);
   document.querySelector("#nav-runs").classList.toggle("active", isRuns);
   document.querySelector("#nav-overview").toggleAttribute("aria-current", isOverview);
-  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isOverview && !isRuns);
+  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isOverview && !isRuns && !isMemory);
   document.querySelector("#nav-runs").toggleAttribute("aria-current", isRuns);
-  const title = isOverview ? "Overview" : isRuns ? "Runs" : "Work Items";
+  const title = isMemory ? "MemoryGraph" : isOverview ? "Overview" : isRuns ? "Runs" : "Work Items";
   document.querySelector("#page-title").textContent = title;
   document.querySelector("#page-crumb").textContent = title;
-  document.querySelector("#open-draft-modal").classList.toggle("hidden", isOverview || isRuns);
-  if (isOverview) await loadOverview();
+  document.querySelector("#open-draft-modal").classList.toggle("hidden", isOverview || isRuns || isMemory);
+  if (isMemory) await window.memoryGraph.load();
+  else if (isOverview) await loadOverview();
   else if (isRuns) {
     state.runsWorkItemId = selectedWorkItemId;
     state.pendingRunId = selectedRunId;
