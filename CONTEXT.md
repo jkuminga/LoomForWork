@@ -6,7 +6,8 @@
 - 단일 요청의 실행 흐름: `docs/single-request-pipeline.html`
 - 작업 단위 분해: `docs/implementation-units.md`
 - MCP 도구와 DB 함수: `docs/mcp-state-store-functions.html`
-- 장기 기억 후보: `docs/memory-candidate-schema.html`
+- 장기 기억 운영·구현: `docs/long-term-memory.html`
+- 장기 기억 스키마: `docs/long-term-memory-schema.html`
 
 ## 작업 구조
 
