@@ -965,6 +965,17 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertIn(".run-status-failed { border-color: #e6beba; background: var(--red-pale); color: var(--red); }", styles)
         self.assertNotIn(".run-status-failed, .run-status-interrupted", styles)
 
+    def test_activity_timeline_menu_opens_a_coming_soon_page(self) -> None:
+        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        index = (root / "index.html").read_text()
+        app_js = (root / "app.js").read_text()
+
+        self.assertIn('id="nav-activity-timeline" href="#activity-timeline"', index)
+        self.assertIn('id="activity-timeline-view"', index)
+        self.assertIn("추후 추가될 기능입니다.", index)
+        self.assertIn('switchView("activity-timeline")', app_js)
+        self.assertIn('const isTimeline = view === "activity-timeline"', app_js)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -136,6 +136,7 @@ h1 { margin: 0; color: var(--forest); font: 650 calc(29px * var(--font-scale))/1
 .secondary-button:hover { background: var(--paper-muted); color: var(--ink); }
 
 .overview-workspace { min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 17px 21px 12px; overflow: hidden; }
+.timeline-coming-soon { flex: 1; display: grid; place-content: center; margin: 0; text-align: center; color: var(--ink-soft); font-size: calc(18px * var(--font-scale)); }
 .overview-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .overview-toolbar-copy { min-width: 0; }
 .overview-toolbar-copy .eyebrow { display: block; color: var(--forest-mid); }
