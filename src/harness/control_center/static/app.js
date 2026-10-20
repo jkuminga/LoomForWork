@@ -120,6 +120,7 @@ const elements = {
   fontScaleDecrease: document.querySelector("#font-scale-decrease"),
   fontScaleIncrease: document.querySelector("#font-scale-increase"),
   fontScaleValue: document.querySelector("#font-scale-value"),
+  toast: document.querySelector("#app-toast"),
 };
 
 function readSidebarPreference() {
@@ -516,6 +517,7 @@ function renderMemoCards() {
           <span class="memo-drag-handle" aria-hidden="true" title="드래그하여 순서 변경">⋮⋮</span>
           <div class="memo-card-title">
             <h4>${escapeHtml(memo.title)}</h4>
+            <button type="button" class="memo-id" data-memo-action="copy-id" aria-label="Memo ID ${escapeHtml(memo.id)} 복사" title="Memo ID 복사">${escapeHtml(memo.id)}</button>
             <span class="memo-kind memo-kind-${escapeHtml(memo.kind)}">${escapeHtml(memoKindLabel(memo.kind))}</span>
             <span class="memo-status">${escapeHtml(statusLabel)}</span>
             ${memo.is_model_visible ? '<span class="memo-model-visible" title="작업 시작 시 Codex 컨텍스트에 포함">모델 공유</span>' : ""}
@@ -589,6 +591,7 @@ async function handleMemoAction(event) {
   try {
     if (action === "edit") return openMemoModal(memoId);
     if (action === "copy") return copyMemoMarkdown(button, memo.content);
+    if (action === "copy-id") return copyMemoId(button, memo.id);
     if (action === "delete") {
       if (!window.confirm(`“${memo.title}” 메모를 삭제할까요? 삭제 후 복구할 수 없습니다.`)) return;
       await api(`/api/work-items/${encodeURIComponent(item.id)}/memos/${encodeURIComponent(memoId)}`, { method: "DELETE" });
@@ -628,6 +631,52 @@ async function copyMemoMarkdown(button, content) {
   } catch (_) {
     window.alert("Markdown 원본을 복사하지 못했습니다.");
   }
+}
+
+async function copyMemoId(button, memoId) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(memoId);
+    } else {
+      const helper = document.createElement("textarea");
+      helper.value = memoId;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.append(helper);
+      helper.select();
+      const copied = document.execCommand("copy");
+      helper.remove();
+      if (!copied) throw new Error("clipboard unavailable");
+    }
+    const originalTitle = button.title;
+    button.title = "복사됨";
+    button.classList.add("is-copied");
+    showToast("Memo ID가 복사되었습니다.");
+    window.setTimeout(() => {
+      button.title = originalTitle;
+      button.classList.remove("is-copied");
+    }, 1600);
+  } catch (_) {
+    window.alert("Memo ID를 복사하지 못했습니다.");
+  }
+}
+
+let toastTimer = null;
+
+function showToast(message) {
+  const toast = elements.toast;
+  if (!toast) return;
+  if (toastTimer) window.clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+  toast.classList.add("is-visible");
+  toastTimer = window.setTimeout(() => {
+    toast.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (!toast.classList.contains("is-visible")) toast.classList.add("hidden");
+    }, 180);
+  }, 1600);
 }
 
 async function saveMemoOrder() {
