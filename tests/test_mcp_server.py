@@ -20,6 +20,35 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
 
+    async def test_tool_event_list_keeps_summaries_without_repeated_metadata(self) -> None:
+        item = state_store.create_ready_work_item(
+            title="EVT list", kind="verification", goal="Inspect compact EVT response",
+            next_action="Inspect", acceptance_criteria=["Summaries retained"],
+            actor="test", database_path=self.database_path,
+        )
+        async with Client(create_server(self.database_path)) as client:
+            async def call(name, arguments):
+                result = await client.call_tool(name, arguments)
+                self.assertFalse(result.is_error, result.content)
+                return result.structured_content
+
+            run = await call("start_work", {"work_item_id": item["id"], "intent": "Inspect", "recall_query": "event list"})
+            first = state_store.record_run_tool_event(
+                run["id"], tool_use_id="first", tool_name="Bash", tool_family="bash",
+                status="succeeded", exit_code=0, input_summary="x" * 200,
+                result_summary="y" * 300, database_path=self.database_path,
+            )
+            full = await call("list_run_tool_events", {"run_id": run["id"]})
+            self.assertEqual(set(full["events"][0]), {
+                "id", "run_seq", "tool_name", "tool_family", "status", "exit_code",
+                "input_summary", "result_summary",
+            })
+            self.assertEqual(full["events"][0]["input_summary"], "x" * 200)
+            self.assertEqual(full["events"][0]["result_summary"], "y" * 300)
+            self.assertEqual(full["events"][0]["id"], first["id"])
+            self.assertEqual(full["snapshot_max_seq"], 1)
+            self.assertEqual(full["total_count"], 1)
+
     async def test_review_plan_closeout_and_historical_recovery_through_mcp(self) -> None:
         item = state_store.create_ready_work_item(
             title="Review", kind="verification", goal="Verify recovery", next_action="Review",
@@ -56,7 +85,8 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(state_store.get_run_artifacts(run["id"], database_path=self.database_path)[0]["id"], artifact["id"])
             # A new Run uses the normal finalize -> finish -> delete sequence.
             next_run = await call("start_work", {"work_item_id": item["id"], "intent": "Next", "recall_query": "next review"})
-            empty_plan = {"schema_version": 1, "work_item_id": item["id"], "run_id": next_run["id"], "snapshot_max_seq": 0, "events": []}
+            empty_plan = {"schema_version": 2, "work_item_id": item["id"], "run_id": next_run["id"],
+                          "snapshot_max_seq": 0, "decisions": [], "excluded_event_ids": []}
             await call("save_review_plan", {"run_id": next_run["id"], "plan": empty_plan})
             finalized = await call("finalize_review_plan", {"run_id": next_run["id"]})
             self.assertTrue(finalized["ae_complete"])

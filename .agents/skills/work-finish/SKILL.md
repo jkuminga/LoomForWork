@@ -22,7 +22,7 @@ description: 활성 Run이 있는 프로젝트 작업의 최종 답변 전에 Po
 
 `list_run_tool_events(run_id)`로 EVT(한 번의 도구 실행 기록) 전체와 `snapshot_max_seq`(이번 검토의 마지막 순번)를 함께 받는다. 목록의 `total_count`와 수신한 항목 수를 확인한다. 메인 Codex가 작업 맥락과 목록을 함께 검토하며 단순 조회·중간 확인은 빠르게 제외하고, 실제 수정·테스트·빌드·커밋 및 중요한 조사 결과를 판단한다. 별도 서브에이전트는 사용하지 않는다.
 
-모든 EVT를 `artifact_evidence`(결과와 AC 근거), `artifact_only`(결과만), `exclude`(제외)로 분류하고 짧은 이유를 붙인다. `save_review_plan(run_id, plan)`으로 불변 JSON을 저장한다. 도구가 파일 형식·Run/WI 소속·AC 연결·스냅샷 전체 포함 여부를 검증한다. 형식은 `schema_version=1`, `run_id`, `work_item_id`, `snapshot_max_seq`, `events`이며 각 이벤트의 `artifact`에는 `kind/verification_status/summary/uri`, `evidence` 배열에는 `criterion_id/result/note/reason`을 넣는다. 제외 항목은 `artifact=null`, `evidence=[]`다.
+모든 EVT를 `artifact_evidence`(결과와 AC 근거), `artifact_only`(결과만), `exclude`(제외)로 분류한다. 새 계획은 `schema_version=2`, `run_id`, `work_item_id`, `snapshot_max_seq`, `decisions`, `excluded_event_ids` 형식으로 `save_review_plan(run_id, plan)`에 저장한다. `decisions`에는 등록할 EVT만 `event_id/decision/reason/artifact/evidence`로 기록하고, 제외할 EVT는 `excluded_event_ids`에 ID만 넣는다. Artifact에는 `kind/verification_status/summary/uri`, Evidence에는 `criterion_id/result/note/reason`을 넣는다. 두 목록의 합집합이 스냅샷의 모든 EVT를 정확히 한 번씩 포함해야 한다. 도구가 파일 형식·Run/WI 소속·AC 연결·전체 포함 여부를 검증한다.
 
 기존 계획은 `get_review_plan()`으로 읽어 재사용한다. 누락된 목록·저장 실패·손상된 JSON은 원인을 알리고 계획 없이 A/E 등록을 시작하지 않는다. JSON은 최초 목록의 스냅샷 경계로 고정하며, 이후 EVT를 추가해 재생성하지 않는다.
 
@@ -30,7 +30,7 @@ description: 활성 Run이 있는 프로젝트 작업의 최종 답변 전에 Po
 
 ## 3. 계획 적용
 
-JSON의 각 항목에 대해 기존 Artifact를 원본 EVT ID인 `source_event_id`로 대조한다. 이미 저장된 결과는 재사용하고, 누락된 Artifact만 `record_artifact()`로 등록한다. 필요한 Evidence(Artifact와 AC를 연결하는 근거)는 `verify_criterion()`으로 연결·판정한다. 이 도구는 Evidence와 AC 상태를 한 DB 트랜잭션으로 처리한다. `exclude` 항목은 A/E를 생성하지 않는다.
+`decisions`의 각 항목에 대해 기존 Artifact를 원본 EVT ID인 `source_event_id`로 대조한다. 이미 저장된 결과는 재사용하고, 누락된 Artifact만 `record_artifact()`로 등록한다. 필요한 Evidence(Artifact와 AC를 연결하는 근거)는 `verify_criterion()`으로 연결·판정한다. 이 도구는 Evidence와 AC 상태를 한 DB 트랜잭션으로 처리한다. `excluded_event_ids` 항목은 A/E를 생성하지 않는다. 기존 v1 계획을 재사용할 때는 그 파일의 `events` 형식을 따른다.
 
 `pending` Artifact의 결과가 확정됐다면 `resolve_artifact()`로 결과를 반영한다. 실제로 실패한 결과를 성공 근거로 사용하거나 AC를 사후 왜곡하지 않는다. 부분 실패가 있으면 성공분을 보존하고 다음 단계 후 최종 재시도에서 누락분만 처리한다.
 

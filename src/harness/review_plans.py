@@ -49,6 +49,17 @@ def _text(value: Any, label: str) -> None:
         raise store.ConflictError(f"{label} must be non-empty text")
 
 
+def _decisions(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expose both stored plan versions as decisions for application/recovery."""
+
+    if plan["schema_version"] == 1:
+        return plan["events"]
+    return plan["decisions"] + [
+        {"event_id": event_id, "decision": "exclude", "artifact": None, "evidence": []}
+        for event_id in plan["excluded_event_ids"]
+    ]
+
+
 def validate_review_plan(
     plan: dict[str, Any], *, run_id: str,
     database_path: str | Path = store.DEFAULT_DATABASE_PATH,
@@ -57,15 +68,19 @@ def validate_review_plan(
     """Validate shape, owner, targets and exact snapshot coverage against DB."""
 
     _path(run_id, database_path)
-    fields = {"schema_version", "run_id", "work_item_id", "snapshot_max_seq", "events"}
-    if not isinstance(plan, dict) or set(plan) != fields:
-        raise store.ConflictError("Review Plan fields do not match schema_version 1")
-    if type(plan["schema_version"]) is not int or plan["schema_version"] != 1:
+    if not isinstance(plan, dict) or type(plan.get("schema_version")) is not int or plan["schema_version"] not in {1, 2}:
         raise store.ConflictError("unsupported Review Plan schema_version")
+    version = plan["schema_version"]
+    fields = {"schema_version", "run_id", "work_item_id", "snapshot_max_seq"}
+    fields |= {"events"} if version == 1 else {"decisions", "excluded_event_ids"}
+    if set(plan) != fields:
+        raise store.ConflictError(f"Review Plan fields do not match schema_version {version}")
     if plan["run_id"] != run_id:
         raise store.ConflictError("Review Plan filename/Run mismatch")
     boundary = plan["snapshot_max_seq"]
-    if type(boundary) is not int or boundary < 0 or not isinstance(plan["events"], list):
+    decisions = plan["events"] if version == 1 else plan["decisions"]
+    excluded = [] if version == 1 else plan["excluded_event_ids"]
+    if type(boundary) is not int or boundary < 0 or not isinstance(decisions, list) or not isinstance(excluded, list):
         raise store.ConflictError("invalid snapshot boundary or events array")
     context = store.get_run_review_context(run_id, database_path=database_path)
     if plan["work_item_id"] != context["run"]["work_item_id"]:
@@ -73,7 +88,7 @@ def validate_review_plan(
     events = {row["id"]: row for row in context["events"]}
     criteria = {row["id"] for row in context["acceptance_criteria"]}
     ids: set[str] = set()
-    for decision in plan["events"]:
+    for decision in decisions:
         if not isinstance(decision, dict) or set(decision) != {"event_id", "decision", "reason", "artifact", "evidence"}:
             raise store.ConflictError("invalid Review Plan decision fields")
         event_id = decision["event_id"]
@@ -87,6 +102,8 @@ def validate_review_plan(
         if not isinstance(choice, str) or choice not in {"exclude", "artifact_only", "artifact_evidence"} or not isinstance(evidence, list):
             raise store.ConflictError("unsupported Review Plan decision")
         if choice == "exclude":
+            if version == 2:
+                raise store.ConflictError("schema_version 2 exclusions belong in excluded_event_ids")
             if artifact is not None or evidence:
                 raise store.ConflictError("excluded EVT must have no Artifact/Evidence")
             continue
@@ -116,6 +133,12 @@ def validate_review_plan(
             _text(link["reason"], "Evidence reason")
             if link["result"] == "passed" and artifact["verification_status"] not in {"passed", "not_applicable"}:
                 raise store.ConflictError("failed/pending Artifact cannot pass an AC")
+    for event_id in excluded:
+        if not isinstance(event_id, str) or event_id in ids or event_id not in events:
+            raise store.ConflictError("duplicate or foreign Review Plan excluded EVT")
+        ids.add(event_id)
+        if events[event_id]["run_seq"] > boundary:
+            raise store.ConflictError("excluded EVT lies outside snapshot")
     if require_coverage and ids != {row["id"] for row in events.values() if row["run_seq"] <= boundary}:
         raise store.ConflictError("Review Plan does not cover the complete snapshot")
     if boundary > max((row["run_seq"] for row in events.values()), default=0):
@@ -166,7 +189,7 @@ def save_review_plan(run_id: str, plan: dict[str, Any], *, database_path: str | 
     finally:
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
-    return {"run_id": run_id, "path": str(path), "event_count": len(plan["events"]), "snapshot_max_seq": plan["snapshot_max_seq"]}
+    return {"run_id": run_id, "path": str(path), "event_count": len(_decisions(plan)), "snapshot_max_seq": plan["snapshot_max_seq"]}
 
 
 def _applied(decision: dict[str, Any], context: dict[str, Any]) -> bool:
@@ -188,11 +211,12 @@ def finalize_review_plan(run_id: str, *, database_path: str | Path = store.DEFAU
 
     plan = load_review_plan(run_id, database_path=database_path)
     context = store.get_run_review_context(run_id, database_path=database_path)
-    complete = [row["event_id"] for row in plan["events"] if _applied(row, context)]
+    decisions = _decisions(plan)
+    complete = [row["event_id"] for row in decisions if _applied(row, context)]
     complete.extend(row["id"] for row in context["events"] if row["run_seq"] > plan["snapshot_max_seq"])
     store.mark_tool_events_reviewed(run_id, complete, recovery_work_item_id=recovery_work_item_id, database_path=database_path)
     status = store.get_run_review_status(run_id, database_path=database_path)
-    return {**status, "ae_complete": all(_applied(row, context) for row in plan["events"]), "reviewed_event_ids": complete}
+    return {**status, "ae_complete": all(_applied(row, context) for row in decisions), "reviewed_event_ids": complete}
 
 
 def delete_review_plan(run_id: str, *, database_path: str | Path = store.DEFAULT_DATABASE_PATH) -> dict[str, Any]:
@@ -205,7 +229,7 @@ def delete_review_plan(run_id: str, *, database_path: str | Path = store.DEFAULT
     context = store.get_run_review_context(run_id, database_path=database_path)
     if context["run"]["status"] == "running" or any(row["reviewed_at"] is None or row["input_summary"] or row["result_summary"] for row in context["events"]):
         raise store.ConflictError("Review Plan is still needed by its Run")
-    if not all(_applied(row, context) for row in plan["events"]):
+    if not all(_applied(row, context) for row in _decisions(plan)):
         raise store.ConflictError("Review Plan has unapplied decisions")
     path.unlink()
     return {"run_id": run_id, "deleted": True}
@@ -249,7 +273,7 @@ def recover_review_plan(work_item_id: str, run_id: str, *, database_path: str | 
     plan = load_review_plan(run_id, database_path=database_path)
     if plan["work_item_id"] != work_item_id:
         raise store.ConflictError("recovery selected WorkItem does not own the plan")
-    result = _apply_decisions(work_item_id, run_id, plan["events"], database_path=database_path)
+    result = _apply_decisions(work_item_id, run_id, _decisions(plan), database_path=database_path)
     if "acknowledgement_error" in result:
         return result
     result.update(finalize_review_plan(run_id, recovery_work_item_id=work_item_id, database_path=database_path))

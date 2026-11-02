@@ -44,6 +44,16 @@ class ReviewPlanTests(unittest.TestCase):
         return {"schema_version": 1, "run_id": self.run, "work_item_id": self.item["id"],
                 "snapshot_max_seq": snapshot["snapshot_max_seq"], "events": decisions if decisions is not None else [self.decision()]}
 
+    def plan_v2(self, decisions=None):
+        original = self.plan(decisions)
+        return {
+            "schema_version": 2, "run_id": original["run_id"],
+            "work_item_id": original["work_item_id"],
+            "snapshot_max_seq": original["snapshot_max_seq"],
+            "decisions": [row for row in original["events"] if row["decision"] != "exclude"],
+            "excluded_event_ids": [row["event_id"] for row in original["events"] if row["decision"] == "exclude"],
+        }
+
     def finish(self):
         return store.finish_run(self.run, run_status="succeeded", work_item_status="ready", summary="done",
                                 next_action="continue", actor="test", reason="test", database_path=self.db)
@@ -73,6 +83,47 @@ class ReviewPlanTests(unittest.TestCase):
                 with self.assertRaises(store.ConflictError):
                     self.save(value)
         self.assertEqual(store.get_run_artifacts(self.run, database_path=self.db), [])
+
+    def test_v2_exclusions_are_compact_and_require_exact_coverage(self):
+        second = self.add_event("second")
+        plan = self.plan_v2([self.decision(), self.decision(second, "exclude")])
+        saved = self.save(plan)
+        self.assertEqual(saved["event_count"], 2)
+        self.assertEqual(plans.load_review_plan(self.run, database_path=self.db), plan)
+        self.assertEqual(plan["excluded_event_ids"], [second["id"]])
+        self.assertNotIn("reason", json.dumps(plan["excluded_event_ids"]))
+        artifact = store.create_artifact(self.run, source_event_id=self.event["id"], **self.decision()["artifact"], actor="test", database_path=self.db)
+        store.verify_criterion_with_evidence(self.ac, artifact["id"], "passed", database_path=self.db)
+        finalized = plans.finalize_review_plan(self.run, database_path=self.db)
+        self.assertTrue(finalized["ae_complete"])
+        self.assertEqual(finalized["unreviewed_event_ids"], [])
+        self.finish()
+        self.assertTrue(plans.delete_review_plan(self.run, database_path=self.db)["deleted"])
+
+    def test_v2_rejects_missing_duplicate_foreign_and_out_of_boundary_exclusions(self):
+        second = self.add_event("second")
+        base = self.plan_v2([self.decision(), self.decision(second, "exclude")])
+        variants = []
+        for ids in ([], [second["id"], second["id"]], ["EVT-foreign"], [self.event["id"]]):
+            value = copy.deepcopy(base); value["excluded_event_ids"] = ids; variants.append(value)
+        wrong_choice = copy.deepcopy(base); wrong_choice["decisions"][0]["decision"] = "exclude"; variants.append(wrong_choice)
+        wrong_version = copy.deepcopy(base); wrong_version["schema_version"] = True; variants.append(wrong_version)
+        bad_boundary = copy.deepcopy(base); bad_boundary["snapshot_max_seq"] = 1; variants.append(bad_boundary)
+        for value in variants:
+            with self.subTest(value=value), self.assertRaises(store.ConflictError):
+                plans.validate_review_plan(value, run_id=self.run, database_path=self.db)
+
+    def test_v2_recovery_applies_only_missing_artifacts_and_acknowledges_exclusions(self):
+        second = self.add_event("second")
+        plan = self.plan_v2([self.decision(), self.decision(second, "exclude")])
+        self.save(plan)
+        self.finish()
+        recovered = plans.recover_review_plan(self.item["id"], self.run, database_path=self.db)
+        self.assertTrue(recovered["ae_complete"])
+        self.assertTrue(recovered["deleted"])
+        self.assertEqual(recovered["unreviewed_event_ids"], [])
+        self.assertEqual(len(store.get_run_artifacts(self.run, database_path=self.db)), 1)
+        self.assertEqual(len(store.get_criterion_evidence(self.ac, database_path=self.db)), 1)
 
     def test_plan_is_immutable_private_and_coverage_survives_later_events(self):
         self.save()

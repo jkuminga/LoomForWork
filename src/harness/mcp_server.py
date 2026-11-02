@@ -519,21 +519,33 @@ def create_server(
 
     @server.tool(name="list_run_tool_events")
     def list_run_tool_events(run_id: str, unreviewed_only: bool = False) -> dict[str, Any]:
-        """Read ordered tool events and snapshot_max_seq from one DB snapshot.
+        """Read compact, ordered tool events and snapshot_max_seq from one DB snapshot.
 
         Before closeout, classify every returned event with task context and
         save_review_plan. For recovery use the original historical Run ID.
         """
-        return state_store.get_run_tool_event_snapshot(run_id, unreviewed_only=unreviewed_only, database_path=database_path)
+        snapshot = state_store.get_run_tool_event_snapshot(
+            run_id, unreviewed_only=unreviewed_only, database_path=database_path,
+        )
+        event_fields = (
+            "id", "run_seq", "tool_name", "tool_family", "status", "exit_code",
+            "input_summary", "result_summary",
+        )
+        snapshot["events"] = [
+            {field: event[field] for field in event_fields} for event in snapshot["events"]
+        ]
+        return snapshot
 
     @server.tool(name="save_review_plan")
     def save_review_plan(run_id: str, plan: dict[str, Any]) -> dict[str, Any]:
         """Validate full snapshot coverage and atomically publish immutable decisions.
 
-        schema_version=1; run_id, work_item_id, snapshot_max_seq, events.
-        Each event has event_id, decision (artifact_evidence/artifact_only/exclude),
-        reason, artifact (kind/verification_status/summary/uri or null), evidence
-        (criterion_id/result/note/reason entries). Store before A/E writes.
+        New plans use schema_version=2 with run_id, work_item_id,
+        snapshot_max_seq, decisions, and excluded_event_ids. Decisions contain
+        event_id, artifact_only/artifact_evidence choice, reason, artifact
+        (kind/verification_status/summary/uri), and evidence links.
+        Legacy schema_version=1 plans with per-event exclusions remain readable.
+        Store before A/E writes.
         """
         return review_plans.save_review_plan(run_id, plan, database_path=database_path)
 
