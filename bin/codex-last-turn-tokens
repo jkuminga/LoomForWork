@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Print token usage for the most recently ended turn in a Codex session."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+
+def latest_session(project: Path) -> Path:
+    root = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "sessions"
+    candidates = sorted(root.glob("**/rollout-*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in candidates:
+        with path.open(encoding="utf-8") as stream:
+            first = json.loads(next(stream))
+        if first.get("type") == "session_meta" and Path(first["payload"]["cwd"]).resolve() == project:
+            return path
+    raise SystemExit(f"No Codex session found for {project} under {root}")
+
+
+def last_ended_turn(path: Path) -> dict:
+    usage_by_turn = {}
+    last_end = None
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # A writer may still be appending the final line.
+            payload = event.get("payload") or {}
+            if event.get("type") == "token_usage_record":
+                usage_by_turn[payload["turn_id"]] = payload.get("turn_token_usage")
+            elif event.get("type") == "event_msg" and payload.get("type") in ("task_complete", "turn_aborted"):
+                last_end = (payload["turn_id"], payload["type"], event.get("timestamp"))
+    if last_end is None:
+        raise SystemExit(f"No ended turn found in {path}")
+    turn_id, status, ended_at = last_end
+    return {
+        "session_file": str(path),
+        "turn_id": turn_id,
+        "status": status,
+        "ended_at": ended_at,
+        "usage": usage_by_turn.get(turn_id),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--session", type=Path, help="Read this rollout JSONL file instead of finding the latest project session")
+    parser.add_argument("--project", type=Path, default=Path.cwd(), help="Project directory used to find the session")
+    args = parser.parse_args()
+    path = args.session or latest_session(args.project.resolve())
+    print(json.dumps(last_ended_turn(path), ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
