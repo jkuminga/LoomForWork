@@ -37,7 +37,7 @@ class ControlCenterApiTests(unittest.TestCase):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Harness Control Center", response.text)
+        self.assertIn("<title>Codex Compass</title>", response.text)
         self.assertIn("새 Draft WI 생성", response.text)
         self.assertIn(
             "pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css",

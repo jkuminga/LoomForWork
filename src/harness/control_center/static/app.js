@@ -2014,6 +2014,7 @@ document.querySelector("#open-draft-modal").addEventListener("click", openModal)
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
+document.querySelector("#brand-home").addEventListener("click", () => switchView("overview"));
 document.querySelector("#nav-overview").addEventListener("click", (event) => { event.preventDefault(); switchView("overview"); });
 document.querySelector("#nav-work-items").addEventListener("click", (event) => { event.preventDefault(); switchView("work-items"); });
 document.querySelector("#nav-runs").addEventListener("click", (event) => { event.preventDefault(); switchView("runs"); });
