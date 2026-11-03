@@ -70,9 +70,9 @@ MCP 응답의 각 EVT에서 `$work-finish` 분류에 필요 없는 `tool_use_id`
 
 ## 3단계: Postflight와 마감 응답 축소
 
-- 첫 `get_postflight_status()`는 현재처럼 Run ID·AC 현황·이번 Run Artifact·pending 기억 후보를 확인한다. 최종 확인은 별도 경량 `view` 또는 조회 함수로 Run 일치 여부, `can_complete`(WI 종료 가능 여부), AC별 상태와 미처리 수만 돌려준다. Artifact의 상세 행이 필요한 오류·대조 상황에는 기존 전체 조회를 사용한다.
-- 정상 경로에서 `finalize_review_plan()`은 `reviewed_count`, `unreviewed_event_ids`, `inconsistent_event_ids`, `ae_complete`를 반환한다. 전체 `reviewed_event_ids`는 상세 진단 옵션에서만 반환한다.
-- `finalize_review_plan()`의 응답이 미검토·불일치가 없음을 이미 증명하면 곧바로 outcome을 정한다. `get_run_review_status()`는 마감 호출 실패, 재시도, 충돌 또는 복구 때만 호출한다.
+- [ ] 첫 `get_postflight_status()`는 현재처럼 Run ID·AC 현황·이번 Run Artifact·pending 기억 후보를 확인한다. 최종 확인은 별도 경량 `view` 또는 조회 함수로 Run 일치 여부, `can_complete`(WI 종료 가능 여부), AC별 상태와 미처리 수만 돌려준다. Artifact의 상세 행이 필요한 오류·대조 상황에는 기존 전체 조회를 사용한다.
+- [ ] 정상 경로에서 `finalize_review_plan()`은 `reviewed_count`, `unreviewed_event_ids`, `inconsistent_event_ids`, `ae_complete`를 반환한다. 전체 `reviewed_event_ids`는 상세 진단 옵션에서만 반환한다.
+- [x] 정상 마감의 중복 조회 생략(스킬 지침 완료): `finalize_review_plan()`이 `ae_complete=true`와 빈 미검토·불일치 목록을 반환하면 곧바로 outcome을 정한다. 호출 실패 또는 미검토·불일치가 있을 때만 `get_run_review_status()`를 재호출한다. 함수·DB 코드는 변경하지 않았다.
 - `finish_work()`의 DB 검증은 생략하지 않는다. 모델에게 중복 데이터를 보내는 것과 상태 저장소의 최종 방어는 별개다.
 
 ## 전역 후속 후보: 시작 문맥과 기억 후보
@@ -88,7 +88,7 @@ MCP 응답의 각 EVT에서 `$work-finish` 분류에 필요 없는 `tool_use_id`
 1. **기준선 측정:** 대표 Run을 작은 EVT 수/큰 EVT 수/Artifact-only 포함/Evidence 포함/기억 후보 포함으로 나누어 각 도구의 응답 문자 수·가능하면 실제 입력 토큰·도구 호출 수·지연 시간을 기록한다. 문서의 71%·73%를 실측 절감률로 사용하지 않는다.
 2. **EVT 조회 응답 축소 — 완료:** 미리보기·선택 상세 방식은 비교 후 기본 경로에서 제외하고, 기존 단일 조회에서 반복 필드 4개를 제거했다. 원본 요약과 스냅샷 경계는 유지한다.
 3. **Review Plan v2 — 완료:** v1 읽기·복구 호환을 유지하면서 v2 전체 커버리지·중복·외부 항목·경계 검증과 저장·마감·복구 테스트를 추가하고 work-finish 지침을 변경했다.
-4. **응답 축소:** 정상 마감의 중복 조회를 없애고, 실패 경로가 여전히 원인 ID를 제공하는지 검증한다.
+4. **응답 축소 — 일부 완료:** 정상 마감의 중복 조회는 `$work-finish` 지침에서 제거했다. 최종 Postflight 경량화와 마감 응답 축소는 미완료이며, 실패 경로의 원인 ID 제공도 후속 검증한다.
 5. **비교:** 같은 작업 사례에서 Artifact-only/Evidence 결정, AC 상태, 복구 결과가 기준선과 같아야 한다. 토큰 절감이 작거나 상세 재조회가 지나치게 많으면 미리보기 폭·조회 조건을 조정한다.
 
 관련 검증 위치: `tests/test_state_store.py`, `tests/test_mcp_server.py`, `tests/test_review_plans.py`. 전역 후속 후보는 별도 결정과 테스트 범위가 필요하다.
