@@ -240,6 +240,14 @@ def create_router() -> APIRouter:
         ]
         return {"work_items": filtered}
 
+    @router.get("/work-items/next-actions")
+    def list_next_actions(request: Request) -> dict[str, object]:
+        return {
+            "work_items": state_store.list_work_item_next_actions(
+                database_path=_database_path(request)
+            )
+        }
+
     @router.get("/work-items/{work_item_id}")
     def get_item(work_item_id: str, request: Request) -> dict[str, object]:
         return _detail(work_item_id, _database_path(request))

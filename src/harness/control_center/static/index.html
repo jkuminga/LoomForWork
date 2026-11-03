@@ -11,8 +11,8 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=brand-home-1" />
-    <script src="/static/app.js?v=brand-home-1" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=next-actions-highlight-1" />
+    <script src="/static/app.js?v=next-actions-highlight-1" defer></script>
     <script src="/static/memory-graph.js?v=1" defer></script>
     <link rel="stylesheet" href="/static/memory-graph.css?v=1" />
   </head>
@@ -231,6 +231,20 @@
         </footer>
       </div>
     </div>
+
+    <section class="next-actions-panel" id="next-actions-panel" aria-labelledby="next-actions-title" aria-hidden="true" inert>
+      <header class="next-actions-header">
+        <div><h2 id="next-actions-title">다음 할일</h2><p id="next-actions-count">WI별 최근 작업과 다음 행동</p></div>
+        <div class="next-actions-header-actions">
+          <button class="next-actions-icon-button" id="next-actions-refresh" type="button" aria-label="다음 할일 새로고침" title="새로고침">↻</button>
+          <button class="next-actions-icon-button" id="next-actions-close" type="button" aria-label="다음 할일 닫기" title="닫기">×</button>
+        </div>
+      </header>
+      <div class="next-actions-list" id="next-actions-list" aria-live="polite"></div>
+    </section>
+    <button class="next-actions-trigger" id="next-actions-trigger" type="button" aria-label="다음 할일 열기" aria-controls="next-actions-panel" aria-expanded="false" title="다음 할일">
+      <img src="/static/favicon.svg?v=transparent-1" alt="" />
+    </button>
 
     <div id="app-toast" class="app-toast hidden" role="status" aria-live="polite"></div>
 

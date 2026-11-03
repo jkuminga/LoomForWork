@@ -1285,6 +1285,38 @@ def list_work_items(
         database.close()
 
 
+def list_work_item_next_actions(
+    *, database_path: str | Path = DEFAULT_DATABASE_PATH
+) -> list[dict[str, Any]]:
+    """Return ready WorkItems with their latest Run for the global panel."""
+
+    database = open_database(database_path)
+    try:
+        return [
+            dict(row)
+            for row in database.execute(
+                """
+                SELECT work_item.id, work_item.title, work_item.status,
+                       work_item.next_action, work_item.updated_at,
+                       run.status AS last_run_status,
+                       run.intent AS last_run_intent,
+                       run.summary AS last_run_summary,
+                       run.started_at AS last_run_at
+                FROM work_items AS work_item
+                LEFT JOIN runs AS run ON run.id = (
+                    SELECT recent.id FROM runs AS recent
+                    WHERE recent.work_item_id = work_item.id
+                    ORDER BY recent.started_at DESC, recent.id DESC LIMIT 1
+                )
+                WHERE work_item.status = 'ready'
+                ORDER BY work_item.updated_at DESC, work_item.id DESC
+                """
+            )
+        ]
+    finally:
+        database.close()
+
+
 def search_work_items(
     terms: Sequence[str],
     *,

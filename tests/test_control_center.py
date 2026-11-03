@@ -51,6 +51,43 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertIn('id="font-scale-value"', response.text)
         self.assertIn('id="font-scale-increase"', response.text)
 
+    def test_next_actions_shows_only_ready_work_items_with_latest_run(self) -> None:
+        draft = state_store.create_draft_work_item(
+            title="초안 작업", kind="research", goal="구체화한다.",
+            actor="test", database_path=self.database_path,
+        )
+        backlog = state_store.create_work_item(
+            title="대기 작업", kind="research", goal="나중에 실행한다.",
+            next_action="실행 준비", actor="test", database_path=self.database_path,
+        )
+        item = state_store.create_ready_work_item(
+            title="이어할 작업", kind="implementation", goal="작업을 이어간다.",
+            next_action="다음 단계 수행", acceptance_criteria=["결과를 확인한다."],
+            actor="test", database_path=self.database_path,
+        )
+        run = state_store.start_run(
+            item["id"], intent="첫 단계 실행", recall_query="첫 단계",
+            actor="test", database_path=self.database_path,
+        )
+        state_store.finish_run(
+            run["id"], run_status="succeeded", work_item_status="ready",
+            summary="첫 단계 완료", next_action="두 번째 단계 수행",
+            actor="test", reason="검증", database_path=self.database_path,
+        )
+
+        response = self.client.get("/api/work-items/next-actions")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["work_items"]), 1)
+        entries = {entry["id"]: entry for entry in response.json()["work_items"]}
+        self.assertNotIn(draft["id"], entries)
+        self.assertNotIn(backlog["id"], entries)
+        entry = entries[item["id"]]
+        self.assertEqual(entry["status"], "ready")
+        self.assertEqual(entry["id"], item["id"])
+        self.assertEqual(entry["last_run_summary"], "첫 단계 완료")
+        self.assertEqual(entry["next_action"], "두 번째 단계 수행")
+
     def test_sidebar_toggle_uses_a_persisted_desktop_icon_rail(self) -> None:
         root = Path(__file__).parents[1] / "src/harness/control_center/static"
         app_js = (root / "app.js").read_text()

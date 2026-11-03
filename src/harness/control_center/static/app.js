@@ -76,6 +76,7 @@ const state = {
   overviewCanvas: { width: 1400, height: 760 },
   sidebarCollapsed: false,
   fontScale: 100,
+  nextActionsOpen: false,
 };
 
 const elements = {
@@ -121,6 +122,9 @@ const elements = {
   fontScaleIncrease: document.querySelector("#font-scale-increase"),
   fontScaleValue: document.querySelector("#font-scale-value"),
   toast: document.querySelector("#app-toast"),
+  nextActionsPanel: document.querySelector("#next-actions-panel"),
+  nextActionsTrigger: document.querySelector("#next-actions-trigger"),
+  nextActionsList: document.querySelector("#next-actions-list"),
 };
 
 function readSidebarPreference() {
@@ -734,6 +738,45 @@ async function api(path, options = {}) {
     throw error;
   }
   return payload;
+}
+
+function setNextActionsOpen(open) {
+  state.nextActionsOpen = open;
+  elements.nextActionsPanel.classList.toggle("is-open", open);
+  elements.nextActionsPanel.setAttribute("aria-hidden", String(!open));
+  elements.nextActionsPanel.inert = !open;
+  elements.nextActionsTrigger.setAttribute("aria-expanded", String(open));
+  elements.nextActionsTrigger.setAttribute("aria-label", open ? "다음 할일 닫기" : "다음 할일 열기");
+  elements.nextActionsTrigger.classList.toggle("is-open", open);
+  if (open) {
+    loadNextActions();
+    document.querySelector("#next-actions-close").focus();
+  } else {
+    elements.nextActionsTrigger.focus();
+  }
+}
+
+async function loadNextActions() {
+  elements.nextActionsList.innerHTML = '<p class="next-actions-message">다음 할일을 불러오는 중입니다.</p>';
+  try {
+    const { work_items: items } = await api("/api/work-items/next-actions");
+    if (!state.nextActionsOpen) return;
+    document.querySelector("#next-actions-count").textContent = `${items.length}개 WI · 최근 작업과 다음 행동`;
+    elements.nextActionsList.innerHTML = items.length ? items.map((item) => {
+      const recent = item.last_run_status === "running"
+        ? `진행 중: ${item.last_run_intent || "작업 실행"}`
+        : item.last_run_summary || (item.last_run_at ? item.last_run_intent : "아직 실행 기록이 없습니다.");
+      return `<article class="next-actions-card">
+        <div class="next-actions-card-meta"><code>${escapeHtml(item.id)}</code><time>${escapeHtml(formatRunDate(item.last_run_at || item.updated_at))}</time><button type="button" data-next-action-id="${escapeHtml(item.id)}">WI 상세 보기 <span aria-hidden="true">→</span></button></div>
+        <h3>${escapeHtml(item.title)}</h3>
+        <div class="next-actions-card-copy next-actions-card-plan"><span><span aria-hidden="true">◉</span> 다음 할일</span><p>${escapeHtml(item.next_action || "아직 정해진 다음 행동이 없습니다.")}</p></div>
+        <div class="next-actions-card-copy next-actions-card-recent"><span><span aria-hidden="true">◷</span> 지난 동작</span><p>${escapeHtml(recent || "실행 결과가 기록되지 않았습니다.")}</p></div>
+      </article>`;
+    }).join("") : '<p class="next-actions-message">진행할 WI가 없습니다.</p>';
+  } catch (error) {
+    if (!state.nextActionsOpen) return;
+    elements.nextActionsList.innerHTML = `<p class="next-actions-message">다음 할일을 불러오지 못했습니다.<br>${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function countFor(type, value) {
@@ -2014,6 +2057,16 @@ document.querySelector("#open-draft-modal").addEventListener("click", openModal)
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
+elements.nextActionsTrigger.addEventListener("click", () => setNextActionsOpen(!state.nextActionsOpen));
+document.querySelector("#next-actions-close").addEventListener("click", () => setNextActionsOpen(false));
+document.querySelector("#next-actions-refresh").addEventListener("click", loadNextActions);
+elements.nextActionsList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-next-action-id]");
+  if (!button) return;
+  const workItemId = button.dataset.nextActionId;
+  setNextActionsOpen(false);
+  switchView("work-items", workItemId);
+});
 document.querySelector("#brand-home").addEventListener("click", () => switchView("overview"));
 document.querySelector("#nav-overview").addEventListener("click", (event) => { event.preventDefault(); switchView("overview"); });
 document.querySelector("#nav-work-items").addEventListener("click", (event) => { event.preventDefault(); switchView("work-items"); });
@@ -2155,6 +2208,7 @@ document.addEventListener("keydown", (event) => {
   else if (!elements.editModal.classList.contains("hidden")) closeEditModal();
   else if (!elements.modal.classList.contains("hidden")) closeModal();
   else if (!elements.memoModal.classList.contains("hidden")) requestCloseMemoModal();
+  else if (state.nextActionsOpen) setNextActionsOpen(false);
 });
 
 setSidebarCollapsed(readSidebarPreference(), false);
