@@ -44,7 +44,7 @@ pending 후보가 남아도 Run 종료는 계속 진행한다. 남은 후보 수
 
 ## 5. 최종 검토와 최대 1회 재시도
 
-`get_postflight_status(work_item_id)`를 다시 호출해 AC·Artifact·Run의 실제 상태를 확인한다. `finalize_review_plan(run_id)`으로 계획대로 A/E가 저장된 EVT와 제외 EVT의 `reviewed_at` 기록·입력/결과 요약 제거를 원자적으로 수행한다. `run_seq > snapshot_max_seq`인 후속 마감 도구 기록도 별도 A/E 추론 없이 마감한다. 경계 안의 누락 EVT는 자동 완료 처리하지 않는다.
+`get_postflight_status(work_item_id, view="final")`로 Run ID·상태, AC 검증 결과(`verification`), 남은 기억 후보 ID를 확인한다. 예상 Run이 아니면 종료하지 않는다. 등록된 Artifact·Evidence의 상세 대조가 필요한 오류 상황에서만 기본 전체 조회를 다시 사용한다. `finalize_review_plan(run_id)`으로 계획대로 A/E가 저장된 EVT와 제외 EVT의 `reviewed_at` 기록·입력/결과 요약 제거를 원자적으로 수행한다. `run_seq > snapshot_max_seq`인 후속 마감 도구 기록도 별도 A/E 추론 없이 마감한다. 경계 안의 누락 EVT는 자동 완료 처리하지 않는다.
 
 `finalize_review_plan()`의 반환값에서 `ae_complete`, `unreviewed_event_ids`, `inconsistent_event_ids`를 확인한다. `ae_complete=true`이고 두 ID 목록이 비어 있으면 이 결과로 마감을 확정하고 `get_run_review_status()`를 다시 호출하지 않는다. 마감 호출이 실패해 결과를 받지 못했거나 미검토·불일치가 남았을 때만 `get_run_review_status(run_id)`로 상태를 재조회한다. JSON과 실제 DB 결과를 대조해 수정 가능한 오류를 바로잡은 뒤, 누락된 A/E 또는 검토 트랜잭션만 **최대 1회** 재시도한다. 재시도 후 상태를 다시 읽으며 새로운 A/E 후보를 추론하거나 JSON을 재작성하지 않는다. 검토 트랜잭션이 실패해 `ae_complete`를 받지 못했다면 `get_run_review_context()`로 계획의 A/E 저장 여부를 대조한다.
 

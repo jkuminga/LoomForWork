@@ -216,7 +216,7 @@ def finalize_review_plan(run_id: str, *, database_path: str | Path = store.DEFAU
     complete.extend(row["id"] for row in context["events"] if row["run_seq"] > plan["snapshot_max_seq"])
     store.mark_tool_events_reviewed(run_id, complete, recovery_work_item_id=recovery_work_item_id, database_path=database_path)
     status = store.get_run_review_status(run_id, database_path=database_path)
-    return {**status, "ae_complete": all(_applied(row, context) for row in decisions), "reviewed_event_ids": complete}
+    return {**status, "ae_complete": all(_applied(row, context) for row in decisions), "reviewed_count": len(complete)}
 
 
 def delete_review_plan(run_id: str, *, database_path: str | Path = store.DEFAULT_DATABASE_PATH) -> dict[str, Any]:

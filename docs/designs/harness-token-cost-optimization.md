@@ -20,7 +20,7 @@
 
 ## 현재 관찰과 측정의 한계
 
-현재 `$work-finish`는 `get_postflight_status()`로 Run·AC·Artifact·기억 후보를 읽고, `list_run_tool_events()`로 분류에 필요한 EVT 필드와 원본 요약을 받아 모든 항목의 판단과 이유를 Review Plan에 쓴다. A/E 적용과 기억 후보 처리 뒤 `get_postflight_status()`를 다시 읽고, `finalize_review_plan()` 뒤에는 `get_run_review_status()`도 호출한다.
+현재 `$work-finish`는 `get_postflight_status()`로 Run·AC·Artifact·기억 후보를 읽고, `list_run_tool_events()`로 분류에 필요한 EVT 필드와 원본 요약을 받아 Review Plan을 쓴다. A/E 적용과 기억 후보 처리 뒤에는 경량 `view="final"`로 재확인한다. `finalize_review_plan()`이 정상 마감 결과를 반환하면 `get_run_review_status()` 재조회는 생략한다.
 
 메모에 기록된 한 Run의 EVT 7건 사례에서 전체 목록 응답은 약 9,059자였다. 입력 100자·결과 160자만 보여주는 **가상** 미리보기는 약 2,650자(문자 수 약 71% 감소)였다. 제외 7건을 상세 객체로 쓴 가상 계획은 약 1,002자, 제외 ID 목록은 약 272자(문자 수 약 73% 감소)였다. 이는 실제 토큰 수·속도·판단 품질 측정이 아니다. DB에 저장되는 EVT 자체와 일반 PostToolUse 정상 호출은 그 자체로 모델 응답을 늘리지 않는다. 저장된 내용이 나중에 모델에게 반환될 때 비용이 발생한다.
 
@@ -70,8 +70,8 @@ MCP 응답의 각 EVT에서 `$work-finish` 분류에 필요 없는 `tool_use_id`
 
 ## 3단계: Postflight와 마감 응답 축소
 
-- [ ] 첫 `get_postflight_status()`는 현재처럼 Run ID·AC 현황·이번 Run Artifact·pending 기억 후보를 확인한다. 최종 확인은 별도 경량 `view` 또는 조회 함수로 Run 일치 여부, `can_complete`(WI 종료 가능 여부), AC별 상태와 미처리 수만 돌려준다. Artifact의 상세 행이 필요한 오류·대조 상황에는 기존 전체 조회를 사용한다.
-- [ ] 정상 경로에서 `finalize_review_plan()`은 `reviewed_count`, `unreviewed_event_ids`, `inconsistent_event_ids`, `ae_complete`를 반환한다. 전체 `reviewed_event_ids`는 상세 진단 옵션에서만 반환한다.
+- [x] 첫 `get_postflight_status()`는 전체 응답을 유지한다. 최종 확인에는 `view="final"`을 사용해 Run ID·상태, 기존 `verification`(AC 완료 검증 결과), pending 기억 후보 ID만 받는다. Artifact 상세가 필요한 오류·대조 상황에는 기본 전체 조회를 사용한다. `$work-finish` 지침과 함수·MCP 테스트에 반영했다.
+- [x] `finalize_review_plan()`은 검토 완료 ID 전체 대신 `reviewed_count`(이번 호출의 마감 대상 EVT 건수)를 반환한다. `unreviewed_event_ids`, `inconsistent_event_ids`, `ae_complete`는 유지한다. 개별 EVT의 상세 진단은 기존 조회 도구를 사용한다.
 - [x] 정상 마감의 중복 조회 생략(스킬 지침 완료): `finalize_review_plan()`이 `ae_complete=true`와 빈 미검토·불일치 목록을 반환하면 곧바로 outcome을 정한다. 호출 실패 또는 미검토·불일치가 있을 때만 `get_run_review_status()`를 재호출한다. 함수·DB 코드는 변경하지 않았다.
 - `finish_work()`의 DB 검증은 생략하지 않는다. 모델에게 중복 데이터를 보내는 것과 상태 저장소의 최종 방어는 별개다.
 
@@ -88,12 +88,11 @@ MCP 응답의 각 EVT에서 `$work-finish` 분류에 필요 없는 `tool_use_id`
 1. **기준선 측정:** 대표 Run을 작은 EVT 수/큰 EVT 수/Artifact-only 포함/Evidence 포함/기억 후보 포함으로 나누어 각 도구의 응답 문자 수·가능하면 실제 입력 토큰·도구 호출 수·지연 시간을 기록한다. 문서의 71%·73%를 실측 절감률로 사용하지 않는다.
 2. **EVT 조회 응답 축소 — 완료:** 미리보기·선택 상세 방식은 비교 후 기본 경로에서 제외하고, 기존 단일 조회에서 반복 필드 4개를 제거했다. 원본 요약과 스냅샷 경계는 유지한다.
 3. **Review Plan v2 — 완료:** v1 읽기·복구 호환을 유지하면서 v2 전체 커버리지·중복·외부 항목·경계 검증과 저장·마감·복구 테스트를 추가하고 work-finish 지침을 변경했다.
-4. **응답 축소 — 일부 완료:** 정상 마감의 중복 조회는 `$work-finish` 지침에서 제거했다. 최종 Postflight 경량화와 마감 응답 축소는 미완료이며, 실패 경로의 원인 ID 제공도 후속 검증한다.
+4. **응답 축소 — 완료:** 정상 마감의 중복 조회를 지침에서 제거하고 최종 Postflight 경량 조회와 `finalize_review_plan()` 응답 축소를 구현했다. 실패 경로의 미검토·불일치 ID는 유지한다.
 5. **비교:** 같은 작업 사례에서 Artifact-only/Evidence 결정, AC 상태, 복구 결과가 기준선과 같아야 한다. 토큰 절감이 작거나 상세 재조회가 지나치게 많으면 미리보기 폭·조회 조건을 조정한다.
 
 관련 검증 위치: `tests/test_state_store.py`, `tests/test_mcp_server.py`, `tests/test_review_plans.py`. 전역 후속 후보는 별도 결정과 테스트 범위가 필요하다.
 
 ## 아직 결정하지 않은 세부값
 
-- 최종 Postflight의 경량 인터페이스를 기존 도구의 `view` 인자로 만들지, 별도 도구로 둘지. 정상 호출자 수와 호환성을 보고 작은 인터페이스를 선택한다.
 - 시작 문맥의 메모 본문 기본 노출 정책. 사용자에게 공개한 메모가 무심코 빠지지 않도록 별도 합의가 필요하다.

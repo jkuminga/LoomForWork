@@ -3567,9 +3567,34 @@ def get_preflight_context(
 def get_postflight_status(
     work_item_id: str,
     *,
+    view: str = "full",
     database_path: str | Path = DEFAULT_DATABASE_PATH,
 ) -> dict[str, Any]:
-    """Return the compact checklist a postflight hook needs before finalization."""
+    """Return the full checklist or the minimal final Run/AC/memory view."""
+
+    if view not in {"full", "final"}:
+        raise ConflictError("Postflight view must be full or final")
+    if view == "final":
+        database = open_database(database_path)
+        try:
+            _require_row(database, "SELECT id FROM work_items WHERE id = ?", (work_item_id,), "WorkItem")
+            running_run = database.execute(
+                "SELECT id, status FROM runs WHERE work_item_id = ? AND status = 'running'",
+                (work_item_id,),
+            ).fetchone()
+            pending_ids = [row["id"] for row in database.execute(
+                """SELECT id FROM memory_candidates
+                   WHERE run_id = ? AND status = 'pending'
+                   ORDER BY created_at, id""",
+                (running_run["id"],),
+            )] if running_run else []
+        finally:
+            database.close()
+        return {
+            "running_run": dict(running_run) if running_run else None,
+            "verification": get_work_item_verification(work_item_id, database_path=database_path),
+            "pending_memory_candidate_ids": pending_ids,
+        }
 
     context = get_work_item_context(work_item_id, database_path=database_path)
     running_run = context["running_run"]

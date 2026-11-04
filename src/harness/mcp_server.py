@@ -558,7 +558,8 @@ def create_server(
     def finalize_review_plan(run_id: str) -> dict[str, Any]:
         """Acknowledge applied plan decisions and scrub summaries atomically.
 
-        Check ae_complete and unreviewed_event_ids. Post-snapshot events are
+        Returns reviewed_count instead of successful EVT IDs. Check ae_complete
+        and unreviewed_event_ids. Post-snapshot events are
         acknowledged without new A/E inference; missing A/E remains unreviewed.
         """
         return review_plans.finalize_review_plan(run_id, database_path=database_path)
@@ -609,15 +610,17 @@ def create_server(
         return review_plans.apply_unplanned_review_recovery(work_item_id, run_id, decisions, database_path=database_path)
 
     @server.tool(name="get_postflight_status")
-    def get_postflight_status(work_item_id: str) -> dict[str, Any]:
+    def get_postflight_status(work_item_id: str, view: Literal["full", "final"] = "full") -> dict[str, Any]:
         """Read the completion checklist before finishing the active Run.
 
-        Inspect unresolved Acceptance Criteria, Artifacts, and pending Memory
-        Candidates. Resolve meaningful omissions before calling finish_work.
+        The default full view includes Artifacts and pending Memory Candidate
+        details. Use view='final' after applying results to check Run identity,
+        completion verification, and remaining candidate IDs without repeating
+        large detail objects. Use the full view to diagnose discrepancies.
         """
 
         return state_store.get_postflight_status(
-            work_item_id, database_path=database_path
+            work_item_id, view=view, database_path=database_path
         )
 
     @server.tool(name="finish_work")

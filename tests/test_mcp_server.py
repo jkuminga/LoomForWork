@@ -90,6 +90,8 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             await call("save_review_plan", {"run_id": next_run["id"], "plan": empty_plan})
             finalized = await call("finalize_review_plan", {"run_id": next_run["id"]})
             self.assertTrue(finalized["ae_complete"])
+            self.assertEqual(finalized["reviewed_count"], 0)
+            self.assertNotIn("reviewed_event_ids", finalized)
             await call("finish_work", {"run_id": next_run["id"], "outcome": "progressed", "summary": "done", "reason": "test", "completion_recommended": True})
             self.assertTrue((await call("delete_review_plan", {"run_id": next_run["id"]}))["deleted"])
 
@@ -290,6 +292,16 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             postflight_result = await client.call_tool(
                 "get_postflight_status", {"work_item_id": work_item["id"]}
             )
+            final_postflight_result = await client.call_tool(
+                "get_postflight_status", {"work_item_id": work_item["id"], "view": "final"}
+            )
+            self.assertFalse(final_postflight_result.is_error)
+            self.assertEqual(final_postflight_result.structured_content["running_run"],
+                             {"id": run["id"], "status": "running"})
+            self.assertEqual(final_postflight_result.structured_content["verification"],
+                             postflight_result.structured_content["verification"])
+            self.assertEqual(final_postflight_result.structured_content["pending_memory_candidate_ids"], [])
+            self.assertNotIn("artifacts", final_postflight_result.structured_content)
             legacy_finish_result = await client.call_tool(
                 "finish_work",
                 {

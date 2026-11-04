@@ -959,6 +959,29 @@ class StateStoreLifecycleTests(unittest.TestCase):
             work_item["id"],
         )
 
+    def test_final_postflight_keeps_verification_and_candidate_ids_without_details(self) -> None:
+        item = state_store.create_ready_work_item(
+            title="Final Postflight", kind="verification", goal="Check final view",
+            next_action="Start run", acceptance_criteria=["Evidence is linked"],
+            actor="test", database_path=self.database_path,
+        )
+        run = self.start_run(item["id"], actor="test", database_path=self.database_path)
+        candidate = state_store.create_candidate(
+            run["id"], proposed_type="general", title="Candidate",
+            content="Detail must stay in the full view", keywords=["postflight"],
+            database_path=self.database_path,
+        )
+        full = state_store.get_postflight_status(item["id"], database_path=self.database_path)
+        final = state_store.get_postflight_status(item["id"], view="final", database_path=self.database_path)
+        self.assertEqual(set(final), {"running_run", "verification", "pending_memory_candidate_ids"})
+        self.assertEqual(final["running_run"], {"id": run["id"], "status": "running"})
+        self.assertEqual(final["verification"], full["verification"])
+        self.assertEqual(final["pending_memory_candidate_ids"], [candidate["id"]])
+        self.assertIn("content", full["pending_memory_candidates"][0])
+        self.assertNotIn("artifacts", final)
+        with self.assertRaises(state_store.ConflictError):
+            state_store.get_postflight_status(item["id"], view="invalid", database_path=self.database_path)
+
     def test_failed_finish_rolls_back_run_and_work_item_together(self) -> None:
         work_item = state_store.create_work_item(
             title="원자성 확인",
