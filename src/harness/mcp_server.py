@@ -172,6 +172,7 @@ def create_server(
         goal: str,
         feature_id: str | None = None,
         priority: Literal["urgent", "high", "normal", "low"] = "normal",
+        description: str | None = None,
         next_action: str | None = None,
         acceptance_criteria: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -187,6 +188,7 @@ def create_server(
             kind=kind,
             goal=goal,
             priority=priority,
+            description=description,
             next_action=next_action,
             acceptance_criteria=acceptance_criteria or (),
             actor="codex",

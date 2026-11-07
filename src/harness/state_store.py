@@ -779,6 +779,7 @@ def create_work_item(
     actor: str,
     feature_id: str | None = None,
     priority: str = "normal",
+    description: str | None = None,
     next_action: str | None = None,
     acceptance_criteria: Sequence[str] = (),
     work_item_id: str | None = None,
@@ -788,15 +789,27 @@ def create_work_item(
 
     identifier = work_item_id or _generate_id("WI")
     now = _utc_now()
+    cleaned_description = description.strip() if description and description.strip() else None
     with _transaction(database_path) as database:
         database.execute(
             """
             INSERT INTO work_items (
-              id, feature_id, title, kind, goal, status, priority, next_action,
+              id, feature_id, title, kind, goal, description, status, priority, next_action,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, 'backlog', ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, 'backlog', ?, ?, ?, ?)
             """,
-            (identifier, feature_id, title, kind, goal, priority, next_action, now, now),
+            (
+                identifier,
+                feature_id,
+                title,
+                kind,
+                goal,
+                cleaned_description,
+                priority,
+                next_action,
+                now,
+                now,
+            ),
         )
         _append_state_event(
             database,

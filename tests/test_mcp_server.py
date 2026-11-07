@@ -164,6 +164,7 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
                     "title": "MCP 서버 구현",
                     "kind": "implementation",
                     "goal": "상태 저장 도구를 공개한다.",
+                    "description": "  PRD 출처: FR-1  ",
                     "next_action": "MCP 서버를 구현한다.",
                     "acceptance_criteria": ["MCP Client 통합 테스트가 통과한다."],
                 },
@@ -184,6 +185,7 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(feature_result.is_error)
         self.assertFalse(work_result.is_error)
+        self.assertEqual(work_item["description"], "PRD 출처: FR-1")
         self.assertEqual(ready_result.structured_content["status"], "ready")
         self.assertEqual(
             context_result.structured_content["work_item"]["id"], work_item["id"]
