@@ -91,6 +91,15 @@ def create_server(
             )
         }
 
+    @server.tool(name="list_features")
+    def list_features() -> dict[str, Any]:
+        """List existing Features and their progress for planning and duplicate checks.
+
+        This tool only reads the state store; it does not create a WorkItem or Run.
+        """
+
+        return {"features": state_store.list_features(database_path=database_path)}
+
     @server.tool(name="create_feature")
     def create_feature(
         title: str,

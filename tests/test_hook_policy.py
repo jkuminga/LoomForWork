@@ -120,6 +120,7 @@ class HookPolicyTests(unittest.TestCase):
     def test_harness_mcp_groups_and_external_passthrough(self) -> None:
         cases = (
             ("mcp__harness_state__get_work_context", {}, "read", True),
+            ("mcp__harness_state__list_features", {}, "read", True),
             ("mcp__harness_state__start_work", {}, "bootstrap", True),
             ("mcp__harness_state__create_ready_work_item", {}, "bootstrap", True),
             (

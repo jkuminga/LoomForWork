@@ -108,6 +108,23 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.structured_content["next_work_items"], [])
         self.assertEqual(result.structured_content["recent_activity"], [])
 
+    async def test_codex_can_list_existing_features_through_mcp(self) -> None:
+        feature = state_store.create_feature(
+            title="Planning",
+            goal="Group project capabilities",
+            actor="test",
+            database_path=self.database_path,
+        )
+
+        async with Client(create_server(self.database_path)) as client:
+            result = await client.call_tool("list_features", {})
+
+        self.assertFalse(result.is_error, result.content)
+        features = result.structured_content["features"]
+        self.assertEqual(len(features), 1)
+        self.assertEqual(features[0]["id"], feature["id"])
+        self.assertIn("progress", features[0])
+
     async def test_codex_can_search_open_work_items_through_mcp(self) -> None:
         work_item = state_store.create_work_item(
             title="Recall 검색 도구",
@@ -689,6 +706,7 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             "search_work_items",
             "get_work_context",
             "get_postflight_status",
+            "list_features",
             "create_feature",
             "update_feature",
             "create_work_item",

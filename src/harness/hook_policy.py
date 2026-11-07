@@ -33,6 +33,7 @@ HARNESS_READ_TOOLS = frozenset(
     {
         "get_project_status",
         "get_work_context",
+        "list_features",
         "search_work_items",
         "get_postflight_status",
         "list_memory_candidates",

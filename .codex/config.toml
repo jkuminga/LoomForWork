@@ -7,6 +7,7 @@ startup_timeout_sec = 20
 tool_timeout_sec = 30
 enabled_tools = [
   "get_project_status",
+  "list_features",
   "search_work_items",
   "get_work_context",
   "get_postflight_status",
