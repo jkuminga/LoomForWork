@@ -60,6 +60,13 @@ description: 사용자 요청을 기존 WorkItem에 연결하거나 새 WorkItem
 
 그 결과를 `refine_draft_work_item()`에 한 번 전달한다. 이 도구는 Draft를 `ready`로 바꾸고 Acceptance Criteria를 함께 저장한다. 성공 후에는 `get_work_context(work_item_id)`를 다시 호출하고 6단계로 간다. 구체화 또는 저장에 실패하면 Run과 프로젝트 변경을 시작하지 않는다.
 
+선택한 WI의 `is_draft`가 `false`이면 `get_work_context(work_item_id)`로 현재 DB 상태를 확인한다. `ready`이면 기존 흐름대로 6단계로 간다. `backlog`이고 여전히 일반 WI(`is_draft=false`)이면 다음 준비 절차를 수행한다. 그 밖의 상태로 바뀌었으면 선택 결과가 오래된 것이므로 상태를 보고하고 Run을 시작하지 않는다. 이 준비 절차는 선택기에서 직접 고른 일반 backlog WI에만 적용하며 Draft 구체화와 ready WI의 계획은 그대로 둔다.
+
+1. WI의 `goal`(목표)과 이번 요청이 같은 작업인지 확인한다. 같은 범위에서 목표가 불충분할 때만 `revise_work_item(work_item_id, goal=...)`로 보강한다. 다른 목표의 요청이면 WI를 바꾸거나 Run을 시작하지 않고 불일치를 알린다.
+2. 기존 Acceptance Criteria(AC, 완료 조건)를 확인한다. 이번 목표를 입증하는 데 필요한 결과가 빠졌거나 표현이 모호할 때만 `manage_criterion()`의 `add` 또는 `revise`로 보강한다. 충분한 AC는 그대로 두며 개수를 맞추려고 늘리지 않는다.
+3. `next_action`(다음 행동)은 이번 사용자 요청에서 바로 시작할 구체적인 행동 한 문장으로 정한다. 기존 값이 비어 있지 않고 이번 요청·목표·AC와 맞으면 재사용한다. 값이 없거나 낡았으면 이번 요청과 남은 AC에서 작성한다. backlog에서는 `next_action`이 비어 있을 수도, 이미 있을 수도 있다.
+4. `change_work_item_state(work_item_id, status="ready", reason=..., next_action=...)`에 정한 비어 있지 않은 값을 전달한다. 성공하면 6단계로 간다. 보강이나 상태 전이에 실패하면 Run을 시작하지 않고 원인을 보고한다.
+
 `selection_status`가 없을 때만 아래의 자동 결정 절차를 사용한다.
 
 1. `ready_candidates` 최대 3개를 비교한다. “이 요청의 완료가 기존 WorkItem의 `goal` 달성에 필요한가?”가 명확히 참인 항목만 재사용한다. 제목보다 `goal`과 `next_action`을 우선한다.

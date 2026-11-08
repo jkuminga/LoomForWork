@@ -376,6 +376,7 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         line = work_item_picker.format_fzf_line(
             {
                 "id": "WI-1",
+                "status": "ready",
                 "is_draft": False,
                 "priority": "high",
                 "kind": "bug",
@@ -390,6 +391,26 @@ class UserPromptSubmitHookTests(unittest.TestCase):
             "WI-1\tREADY   | high     | bug            | 로그인 구현 / 로그인한다. 검증한다."
             "\tREADY\thigh\tbug\t로그인 구현\t로그인한다. 검증한다.\t로그인 테스트를 실행한다.",
         )
+
+    def test_picker_request_and_row_show_ordinary_backlog(self) -> None:
+        backlog = state_store.create_work_item(
+            title="문서 연결", kind="implementation", goal="문서 내용을 읽는다.",
+            actor="test", database_path=self.database_path,
+        )
+        request_path = user_prompt_submit.write_selection_request(
+            request_id="backlog", session_id="session", turn_id="turn",
+            work_items=state_store.list_selectable_work_items(database_path=self.database_path),
+            selections_directory=self.root / "selections",
+        )
+
+        request = work_item_picker.read_and_validate_request(request_path)
+        item = next(item for item in request["work_items"] if item["id"] == backlog["id"])
+        self.assertEqual(item["status"], "backlog")
+        self.assertFalse(item["is_draft"])
+        line = work_item_picker.format_fzf_line(item)
+        self.assertIn("\tBACKLOG |", line)
+        self.assertIn("\tBACKLOG\t", line)
+        self.assertIn("작업 시작 시 다음 행동을 정합니다.", line)
 
     def test_terminal_picker_shows_guidance_when_terminal_cannot_access_desktop(self) -> None:
         request_path = self.root / "selections" / "selection.request.json"

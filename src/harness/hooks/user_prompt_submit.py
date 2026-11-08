@@ -87,7 +87,7 @@ def write_selection_request(
     work_items: list[Mapping[str, Any]], selections_directory: Path,
     timeout_seconds: int = SELECTION_TIMEOUT_SECONDS,
 ) -> Path:
-    """Atomically create one picker request containing every ready WorkItem."""
+    """Atomically create one picker request with all selectable WorkItems."""
 
     created_at = work_item_picker.utc_now()
     request_path = selections_directory / f"selection-{request_id}.request.json"
@@ -107,6 +107,7 @@ def write_selection_request(
                 "goal": item["goal"],
                 "kind": item["kind"],
                 "priority": item["priority"],
+                "status": item["status"],
                 "is_draft": bool(item["is_draft"]),
                 "next_action": item["next_action"],
             }

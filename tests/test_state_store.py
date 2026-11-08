@@ -25,6 +25,27 @@ class StateStoreLifecycleTests(unittest.TestCase):
             **arguments,
         )
 
+    def test_selectable_work_items_order_ready_backlog_draft(self) -> None:
+        draft = state_store.create_draft_work_item(
+            title="초안", kind="research", goal="범위를 정한다.", actor="test",
+            database_path=self.database_path,
+        )
+        backlog = state_store.create_work_item(
+            title="대기", kind="implementation", goal="기능을 만든다.", actor="test",
+            priority="high", database_path=self.database_path,
+        )
+        ready = state_store.create_ready_work_item(
+            title="준비", kind="implementation", goal="기능을 검증한다.",
+            next_action="검증을 시작한다.", acceptance_criteria=["결과를 확인한다."],
+            actor="test", priority="low", database_path=self.database_path,
+        )
+
+        items = state_store.list_selectable_work_items(database_path=self.database_path)
+
+        self.assertEqual([item["id"] for item in items], [ready["id"], backlog["id"], draft["id"]])
+        self.assertEqual([item["status"] for item in items], ["ready", "backlog", "backlog"])
+        self.assertEqual([item["is_draft"] for item in items], [False, False, True])
+
     def test_initialize_database_adds_recall_fields_to_an_existing_runs_table(self) -> None:
         legacy_path = Path(self.temporary_directory.name) / "legacy.db"
         database = sqlite3.connect(legacy_path)

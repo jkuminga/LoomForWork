@@ -1246,7 +1246,7 @@ def list_ready_work_items(
 def list_selectable_work_items(
     *, database_path: str | Path = DEFAULT_DATABASE_PATH
 ) -> list[dict[str, Any]]:
-    """Return ready WorkItems plus Drafts for an explicit ``w/`` selection."""
+    """Return ready, ordinary backlog, and Draft WorkItems for ``w/`` selection."""
 
     database = open_database(database_path)
     try:
@@ -1255,9 +1255,13 @@ def list_selectable_work_items(
             for row in database.execute(
                 """
                 SELECT * FROM work_items
-                WHERE status = 'ready' OR (status = 'backlog' AND is_draft = 1)
+                WHERE (status = 'ready' AND is_draft = 0) OR status = 'backlog'
                 ORDER BY
-                  CASE WHEN is_draft = 1 THEN 0 ELSE 1 END,
+                  CASE
+                    WHEN status = 'ready' THEN 0
+                    WHEN is_draft = 0 THEN 1
+                    ELSE 2
+                  END,
                   CASE priority
                     WHEN 'urgent' THEN 1 WHEN 'high' THEN 2
                     WHEN 'normal' THEN 3 WHEN 'low' THEN 4

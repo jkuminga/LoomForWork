@@ -176,6 +176,10 @@ def read_and_validate_request(path: Path) -> dict[str, Any]:
             _required_string(work_item, "kind")
         if "is_draft" in work_item and not isinstance(work_item["is_draft"], bool):
             raise SelectionFileError("work_items is_draft must be a boolean")
+        if "status" in work_item and work_item["status"] not in {"ready", "backlog"}:
+            raise SelectionFileError("work_items status must be ready or backlog")
+        if work_item.get("is_draft") and work_item.get("status", "backlog") != "backlog":
+            raise SelectionFileError("Draft WorkItem must be backlog")
         if work_item.get("next_action") is not None and not isinstance(
             work_item["next_action"], str
         ):
@@ -238,7 +242,7 @@ def _one_line(value: object) -> str:
 def format_fzf_line(item: Mapping[str, Any]) -> str:
     """Format a fixed-column WorkItem row while preserving its ID for selection."""
 
-    status = "DRAFT" if item.get("is_draft") else "READY"
+    status = "DRAFT" if item.get("is_draft") else str(item.get("status", "ready")).upper()
     display = (
         f"{status:<7} | "
         f"{_one_line(item['priority']):<8} | "
@@ -254,7 +258,10 @@ def format_fzf_line(item: Mapping[str, Any]) -> str:
             _one_line(item.get("kind", "work")),
             _one_line(item["title"]),
             _one_line(item["goal"]),
-            _one_line(item.get("next_action") or "구체화 전이라 다음 행동이 없습니다."),
+            _one_line(item.get("next_action") or (
+                "구체화 전이라 다음 행동이 없습니다." if item.get("is_draft")
+                else "작업 시작 시 다음 행동을 정합니다."
+            )),
         )
     )
 
