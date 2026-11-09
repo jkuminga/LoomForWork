@@ -19,7 +19,7 @@
 ## 작업 결과 기록
 
 - 활성 Run의 일반 도구 사용 기록은 PostToolUse(도구 실행 후 훅)가 자동 저장한다. Artifact(작업 결과 기록)·Evidence(결과와 완료 조건의 연결)의 등록 판단과 저장은 `$work-finish`에서 작업 맥락과 기록 목록을 함께 검토하여 수행한다.
-- 개별 도구 실행 직후에는 MCP 도구 설명만 보고 `record_artifact()`를 자율적으로 호출하지 않는다. 현재 Run의 등록은 `$work-finish`의 검토 계획을 따르고, 과거 Run의 복구는 `$work-start`의 복구 전용 도구를 사용한다.
+- 현재 Run의 Artifact·Evidence는 `$work-finish`가 저장한 Review Plan을 `apply_review_plan_event()`로 적용해 등록한다. 과거 Run의 복구는 `$work-start`의 복구 전용 도구를 사용한다.
 
 ## 프로젝트 작업 종료
 

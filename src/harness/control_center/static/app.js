@@ -186,7 +186,7 @@ function changeFontScale(direction) {
 }
 
 function statusOf(item) {
-  return item.is_draft ? "draft" : item.status;
+  return item.is_draft && item.status === "backlog" ? "draft" : item.status;
 }
 
 function labelFor(options, value) {

@@ -206,6 +206,32 @@ def _applied(decision: dict[str, Any], context: dict[str, Any]) -> bool:
     )
 
 
+def apply_review_plan_event(
+    run_id: str, event_id: str, *, database_path: str | Path = store.DEFAULT_DATABASE_PATH,
+) -> dict[str, Any]:
+    """Apply one saved decision without copying Artifact or Evidence fields."""
+
+    plan = load_review_plan(run_id, database_path=database_path)
+    context = store.get_run_review_context(run_id, database_path=database_path)
+    if context["run"]["status"] != "running":
+        raise store.ConflictError("normal Review Plan application requires a running Run")
+    decision = next((row for row in _decisions(plan) if row["event_id"] == event_id), None)
+    if decision is None or decision["decision"] == "exclude":
+        raise store.ConflictError("EVT has no Artifact decision in Review Plan")
+
+    artifact = store.create_artifact(
+        run_id, source_event_id=event_id, actor="codex",
+        database_path=database_path, **decision["artifact"],
+    )
+    evidence = [
+        store.verify_criterion_with_evidence(
+            artifact_id=artifact["id"], actor="codex", database_path=database_path, **link,
+        )
+        for link in decision["evidence"]
+    ]
+    return {"event_id": event_id, "artifact": artifact, "evidence": evidence}
+
+
 def finalize_review_plan(run_id: str, *, database_path: str | Path = store.DEFAULT_DATABASE_PATH, recovery_work_item_id: str | None = None) -> dict[str, Any]:
     """Acknowledge applied decisions and post-snapshot bookkeeping events."""
 

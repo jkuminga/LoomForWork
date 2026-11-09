@@ -253,7 +253,7 @@ END;
 
 CREATE TRIGGER IF NOT EXISTS draft_work_items_must_stay_in_backlog
 BEFORE UPDATE OF status, is_draft ON work_items
-WHEN NEW.is_draft = 1 AND NEW.status <> 'backlog'
+WHEN NEW.is_draft = 1 AND NEW.status NOT IN ('backlog', 'cancelled')
 BEGIN
   SELECT RAISE(ABORT, 'Draft WorkItem must be refined before it becomes executable');
 END;

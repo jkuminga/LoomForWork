@@ -6,7 +6,7 @@
 
 Draft는 실행 계획을 아직 다듬지 않은 WI다. 웹 콘솔의 새 Draft 모달에서 `title`(제목), `kind`(작업 종류), `goal`(목표)을 필수로 입력하고 `description`(추가 설명)은 선택적으로 입력한다. `POST /api/draft-work-items`가 `create_draft_work_item()`을 호출한다.
 
-생성 시 DB에는 `is_draft=1`(구체화 전 표시), `status=backlog`(아직 실행 준비 전), `priority=normal`(기본 우선순위)을 저장한다. `next_action`(바로 실행할 다음 행동)과 AC(Acceptance Criteria, 검증 가능한 완료 조건)는 아직 없다. `description`의 공백 입력은 값 없음으로 처리한다. 화면의 “Draft”는 별도 DB 상태가 아니라 `status=backlog`이면서 `is_draft=1`인 WI의 표시·필터 이름이다.
+생성 시 DB에는 `is_draft=1`(구체화 전 표시), `status=backlog`(아직 실행 준비 전), `priority=normal`(기본 우선순위)을 저장한다. `next_action`(바로 실행할 다음 행동)과 AC(Acceptance Criteria, 검증 가능한 완료 조건)는 아직 없다. `description`의 공백 입력은 값 없음으로 처리한다. 화면의 “Draft”는 별도 DB 상태가 아니라 `status=backlog`이면서 `is_draft=1`인 WI의 표시·필터 이름이다. 필요 없어진 Draft는 구체화 없이 `cancelled`로 변경할 수 있다.
 
 `w/`에서 Draft를 선택하면 `$work-start`가 `refine_draft_work_item()`으로 `priority`, 선택적 `feature_id`(상위 기능 묶음), `next_action`, AC를 저장한다. 이 함수는 한 DB 트랜잭션에서 `is_draft=0`, `status=ready`(실행 준비 완료)로 바꾼다. 구체화에 실패하면 새 Run을 시작하지 않는다. 이미 실행 준비가 된 WI를 대화에서 직접 만들라는 요청은 별도 `$work-item-create` 경로를 사용한다.
 

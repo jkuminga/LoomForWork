@@ -498,8 +498,15 @@ class StateStoreLifecycleTests(unittest.TestCase):
             draft_capabilities["editable_fields"],
             ["title", "kind", "goal", "description"],
         )
-        self.assertEqual(draft_capabilities["allowed_statuses"], [])
+        self.assertEqual(draft_capabilities["allowed_statuses"], ["cancelled"])
         self.assertTrue(draft_capabilities["can_delete"])
+        cancelled_draft = state_store.change_work_item_status(
+            draft["id"], "cancelled", actor="test", reason="더 이상 필요 없음",
+            database_path=self.database_path,
+        )
+        self.assertEqual(cancelled_draft["status"], "cancelled")
+        self.assertEqual(cancelled_draft["is_draft"], 1)
+        self.assertIsNotNone(cancelled_draft["closed_at"])
 
         backlog = state_store.create_work_item(
             title="일반 Backlog",

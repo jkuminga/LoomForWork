@@ -30,7 +30,7 @@ description: 활성 Run이 있는 프로젝트 작업의 최종 답변 전에 Po
 
 ## 3. 계획 적용
 
-`decisions`의 각 항목에 대해 기존 Artifact를 원본 EVT ID인 `source_event_id`로 대조한다. 이미 저장된 결과는 재사용하고, 누락된 Artifact만 `record_artifact()`로 등록한다. 필요한 Evidence(Artifact와 AC를 연결하는 근거)는 `verify_criterion()`으로 연결·판정한다. 이 도구는 Evidence와 AC 상태를 한 DB 트랜잭션으로 처리한다. `excluded_event_ids` 항목은 A/E를 생성하지 않는다. 기존 v1 계획을 재사용할 때는 그 파일의 `events` 형식을 따른다.
+`decisions`의 각 항목에 대해 `apply_review_plan_event(run_id, event_id)`를 호출한다. 서버가 저장된 Review Plan의 Artifact·Evidence 값을 직접 읽어 적용한다. 이미 적용한 항목은 재사용하며, Artifact 등록 뒤 Evidence 연결에 실패한 항목은 같은 ID로 재시도할 수 있다. `excluded_event_ids` 항목은 호출하지 않는다. 기존 v1 계획은 `events`의 등록 대상 ID를 사용한다.
 
 `pending` Artifact의 결과가 확정됐다면 `resolve_artifact()`로 결과를 반영한다. 실제로 실패한 결과를 성공 근거로 사용하거나 AC를 사후 왜곡하지 않는다. 부분 실패가 있으면 성공분을 보존하고 다음 단계 후 최종 재시도에서 누락분만 처리한다.
 

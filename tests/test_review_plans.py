@@ -102,6 +102,30 @@ class ReviewPlanTests(unittest.TestCase):
         self.finish()
         self.assertTrue(plans.delete_review_plan(self.run, database_path=self.db)["deleted"])
 
+    def test_apply_event_reads_saved_values_and_reuses_partial_result(self):
+        planned = self.decision()
+        planned["artifact"]["summary"] = "summary from immutable plan"
+        self.save(self.plan_v2([planned]))
+        with patch.object(store, "verify_criterion_with_evidence", side_effect=store.ConflictError("temporary error")):
+            with self.assertRaisesRegex(store.ConflictError, "temporary error"):
+                plans.apply_review_plan_event(self.run, self.event["id"], database_path=self.db)
+
+        first = store.get_run_artifacts(self.run, database_path=self.db)[0]
+        self.assertEqual(first["summary"], "summary from immutable plan")
+        result = plans.apply_review_plan_event(self.run, self.event["id"], database_path=self.db)
+        replay = plans.apply_review_plan_event(self.run, self.event["id"], database_path=self.db)
+        self.assertEqual(result["artifact"]["id"], first["id"])
+        self.assertEqual(replay["artifact"]["id"], first["id"])
+        self.assertEqual(len(store.get_run_artifacts(self.run, database_path=self.db)), 1)
+        self.assertTrue(plans.finalize_review_plan(self.run, database_path=self.db)["ae_complete"])
+
+    def test_apply_event_requires_saved_artifact_decision(self):
+        with self.assertRaises(store.ConflictError):
+            plans.apply_review_plan_event(self.run, self.event["id"], database_path=self.db)
+        self.save(self.plan_v2([self.decision(choice="exclude")]))
+        with self.assertRaisesRegex(store.ConflictError, "no Artifact decision"):
+            plans.apply_review_plan_event(self.run, self.event["id"], database_path=self.db)
+
     def test_v2_rejects_missing_duplicate_foreign_and_out_of_boundary_exclusions(self):
         second = self.add_event("second")
         base = self.plan_v2([self.decision(), self.decision(second, "exclude")])

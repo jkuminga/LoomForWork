@@ -185,6 +185,7 @@ def initialize_database(
         ).fetchone():
             raise ConflictError("duplicate legacy Artifact source events require explicit reconciliation")
         database.execute("DROP INDEX IF EXISTS artifacts_source_event_idx")
+        database.execute("DROP TRIGGER IF EXISTS draft_work_items_must_stay_in_backlog")
         database.executescript(Path(schema_path).read_text())
         _migrate_work_item_draft_fields(database)
         _migrate_run_recall_fields(database)
@@ -1124,7 +1125,7 @@ def get_work_item_management_capabilities(
     status = work_item["status"]
     if work_item["is_draft"]:
         editable_fields = ["title", "kind", "goal", "description"]
-        allowed_statuses: list[str] = []
+        allowed_statuses: list[str] = ["cancelled"] if status == "backlog" else []
     elif status in {"backlog", "ready", "blocked"}:
         editable_fields = [
             "title", "kind", "goal", "description", "priority", "next_action"
@@ -1604,7 +1605,7 @@ def change_work_item_status(
         )
         if current["status"] == status:
             return current
-        if current["is_draft"] and status != "backlog":
+        if current["is_draft"] and status not in {"backlog", "cancelled"}:
             raise ConflictError("Draft WorkItem must be refined before it becomes executable")
         if status in {"ready", "blocked", "cancelled"}:
             _require_no_running_run(database, work_item_id)

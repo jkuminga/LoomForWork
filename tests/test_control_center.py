@@ -509,7 +509,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertEqual(context["recent_runs"], [])
         self.assertTrue(context["capabilities"]["can_edit"])
         self.assertTrue(context["capabilities"]["can_delete"])
-        self.assertEqual(context["capabilities"]["allowed_statuses"], [])
+        self.assertEqual(context["capabilities"]["allowed_statuses"], ["cancelled"])
         self.assertEqual(context["memos"], [])
 
     def test_memo_api_supports_create_update_filters_reorder_and_delete(self) -> None:

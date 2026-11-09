@@ -70,7 +70,10 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
                     "evidence": [{"criterion_id": ac, "result": "passed", "note": "tests", "reason": "verified"}]}]}
             await call("save_review_plan", {"run_id": run["id"], "plan": plan})
             await call("get_review_plan", {"run_id": run["id"]})
-            artifact = await call("record_artifact", {"run_id": run["id"], "source_event_id": event["id"], **plan["events"][0]["artifact"]})
+            artifact = state_store.create_artifact(
+                run["id"], source_event_id=event["id"], actor="test",
+                database_path=self.database_path, **plan["events"][0]["artifact"],
+            )
             # Simulate interruption after Artifact insertion, before Evidence/ack.
             await call("finish_work", {"run_id": run["id"], "outcome": "interrupted", "summary": "partial", "reason": "test",
                                        "termination_reason": "simulated interruption", "next_action": "Recover"})
@@ -94,6 +97,40 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("reviewed_event_ids", finalized)
             await call("finish_work", {"run_id": next_run["id"], "outcome": "progressed", "summary": "done", "reason": "test", "completion_recommended": True})
             self.assertTrue((await call("delete_review_plan", {"run_id": next_run["id"]}))["deleted"])
+
+    async def test_apply_review_plan_event_uses_saved_artifact_and_evidence(self) -> None:
+        item = state_store.create_ready_work_item(
+            title="Saved decision", kind="verification", goal="Apply saved decision",
+            next_action="Review", acceptance_criteria=["Result verified"],
+            actor="test", database_path=self.database_path,
+        )
+        ac = state_store.get_preflight_context(item["id"], database_path=self.database_path)["acceptance_criteria"][0]["id"]
+        async with Client(create_server(self.database_path)) as client:
+            async def call(name, arguments):
+                result = await client.call_tool(name, arguments)
+                self.assertFalse(result.is_error, result.content)
+                return result.structured_content
+
+            run = await call("start_work", {"work_item_id": item["id"], "intent": "Review", "recall_query": "saved decision"})
+            event = state_store.record_run_tool_event(
+                run["id"], tool_use_id="saved", tool_name="Bash", tool_family="bash",
+                status="succeeded", exit_code=0, input_summary="run", result_summary="passed",
+                database_path=self.database_path,
+            )
+            plan = {
+                "schema_version": 2, "run_id": run["id"], "work_item_id": item["id"],
+                "snapshot_max_seq": 1, "excluded_event_ids": [],
+                "decisions": [{
+                    "event_id": event["id"], "decision": "artifact_evidence", "reason": "result",
+                    "artifact": {"kind": "test_run", "verification_status": "passed", "summary": "plan summary", "uri": None},
+                    "evidence": [{"criterion_id": ac, "result": "passed", "note": "plan note", "reason": "verified"}],
+                }],
+            }
+            await call("save_review_plan", {"run_id": run["id"], "plan": plan})
+            result = await call("apply_review_plan_event", {"run_id": run["id"], "event_id": event["id"]})
+            self.assertEqual(result["artifact"]["summary"], "plan summary")
+            self.assertEqual(result["evidence"][0]["evidence"]["note"], "plan note")
+            self.assertTrue((await call("finalize_review_plan", {"run_id": run["id"]}))["ae_complete"])
 
     async def test_codex_can_read_project_status_through_mcp(self) -> None:
         async with Client(create_server(self.database_path)) as client:
@@ -278,36 +315,29 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             run = run_result.structured_content
             self.assertEqual(run["intent"], "MCP 실행 흐름을 구현하고 검증한다.")
             self.assertEqual(run["recall_query"], "MCP 실행 검증")
-            invalid_artifact_result = await client.call_tool(
-                "record_artifact",
-                {
-                    "run_id": run["id"],
-                    "kind": "test_run",
-                    "uri": "trace://mcp/tests-1",
-                    "verification_status": "failed",
-                    "summary": "실행 시각이 없는 잘못된 URI",
-                },
+            event = state_store.record_run_tool_event(
+                run["id"], tool_use_id="mcp-test", tool_name="Bash", tool_family="bash",
+                status="succeeded", exit_code=0, input_summary="run tests",
+                result_summary="passed", database_path=self.database_path,
             )
+            plan = {
+                "schema_version": 2, "run_id": run["id"], "work_item_id": work_item["id"],
+                "snapshot_max_seq": 1, "excluded_event_ids": [],
+                "decisions": [{
+                    "event_id": event["id"], "decision": "artifact_evidence", "reason": "test result",
+                    "artifact": {"kind": "test_run", "verification_status": "passed",
+                                 "summary": "MCP 실행 테스트 통과", "uri": "command:mcp-tests:20260827T082000Z"},
+                    "evidence": [{"criterion_id": criterion_id, "result": "passed",
+                                  "note": "MCP Client 통합 테스트", "reason": "verified"}],
+                }],
+            }
+            await client.call_tool("save_review_plan", {"run_id": run["id"], "plan": plan})
             artifact_result = await client.call_tool(
-                "record_artifact",
-                {
-                    "run_id": run["id"],
-                    "kind": "test_run",
-                    "uri": "command:mcp-tests:20260827T082000Z",
-                    "verification_status": "passed",
-                    "summary": "MCP 실행 테스트 통과",
-                },
+                "apply_review_plan_event", {"run_id": run["id"], "event_id": event["id"]},
             )
-            artifact = artifact_result.structured_content
-            verify_result = await client.call_tool(
-                "verify_criterion",
-                {
-                    "criterion_id": criterion_id,
-                    "artifact_id": artifact["id"],
-                    "result": "passed",
-                    "note": "MCP Client 통합 테스트",
-                },
-            )
+            artifact = artifact_result.structured_content["artifact"]
+            verify_result = artifact_result.structured_content["evidence"][0]
+            await client.call_tool("finalize_review_plan", {"run_id": run["id"]})
             postflight_result = await client.call_tool(
                 "get_postflight_status", {"work_item_id": work_item["id"]}
             )
@@ -360,9 +390,8 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertFalse(run_result.is_error)
-        self.assertTrue(invalid_artifact_result.is_error)
         self.assertFalse(artifact_result.is_error)
-        self.assertEqual(verify_result.structured_content["criterion"]["status"], "passed")
+        self.assertEqual(verify_result["criterion"]["status"], "passed")
         self.assertTrue(
             postflight_result.structured_content["verification"]["can_complete"]
         )
@@ -700,7 +729,7 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         expected_tools = {
-            "list_run_tool_events", "save_review_plan", "get_review_plan",
+            "list_run_tool_events", "save_review_plan", "get_review_plan", "apply_review_plan_event",
             "finalize_review_plan", "get_run_review_status", "delete_review_plan",
             "list_runs_with_unreviewed_tool_events", "get_run_review_context",
             "recover_review_plan", "apply_unplanned_review_recovery",
@@ -720,7 +749,6 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             "close_work_item",
             "manage_criterion",
             "start_work",
-            "record_artifact",
             "resolve_artifact",
             "verify_criterion",
             "finish_work",

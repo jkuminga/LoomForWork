@@ -446,49 +446,6 @@ def create_server(
             database_path=database_path,
         )
 
-    @server.tool(name="record_artifact")
-    def record_artifact(
-        run_id: str,
-        kind: Literal[
-            "file",
-            "commit",
-            "test_run",
-            "lint_run",
-            "build_run",
-            "pull_request",
-            "deployment",
-            "screenshot",
-            "report",
-            "other",
-        ],
-        verification_status: Literal[
-            "not_applicable", "pending", "passed", "failed"
-        ],
-        summary: str,
-        uri: str | None = None,
-        source_event_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Register a file, test, build, commit, or other verifiable Run result.
-
-        Store only a short summary and an optional URI; keep full output in the
-        referenced file, Trace, Git, or CI system when one exists. At work-finish
-        use the saved Review Plan to select meaningful results, rather than
-        registering every tool call. Provide ``source_event_id`` to link the
-        result to one ``run_tool_events.id``. Repeated test, lint, and build executions
-        use ``command:<command-family>:<YYYYMMDDTHHMMSSZ>`` when a URI is known.
-        """
-
-        return state_store.create_artifact(
-            run_id,
-            kind=kind,
-            uri=uri,
-            source_event_id=source_event_id,
-            verification_status=verification_status,
-            summary=summary,
-            actor="codex",
-            database_path=database_path,
-        )
-
     @server.tool(name="resolve_artifact")
     def resolve_artifact(
         artifact_id: str,
@@ -564,6 +521,15 @@ def create_server(
     def get_review_plan(run_id: str) -> dict[str, Any]:
         """Read and validate an existing immutable plan; never recreate a damaged file."""
         return review_plans.load_review_plan(run_id, database_path=database_path)
+
+    @server.tool(name="apply_review_plan_event")
+    def apply_review_plan_event(run_id: str, event_id: str) -> dict[str, Any]:
+        """Apply one saved EVT decision using its exact Artifact and Evidence fields.
+
+        The immutable Review Plan supplies every stored value. Repeating a
+        partially applied event reuses its Artifact and Evidence.
+        """
+        return review_plans.apply_review_plan_event(run_id, event_id, database_path=database_path)
 
     @server.tool(name="finalize_review_plan")
     def finalize_review_plan(run_id: str) -> dict[str, Any]:
