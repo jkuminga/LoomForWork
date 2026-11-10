@@ -956,6 +956,7 @@ def create_draft_work_item(
     goal: str,
     actor: str,
     description: str | None = None,
+    feature_id: str | None = None,
     work_item_id: str | None = None,
     database_path: str | Path = DEFAULT_DATABASE_PATH,
 ) -> dict[str, Any]:
@@ -965,14 +966,16 @@ def create_draft_work_item(
     now = _utc_now()
     cleaned_description = description.strip() if description and description.strip() else None
     with _transaction(database_path) as database:
+        if feature_id is not None:
+            _require_row(database, "SELECT id FROM features WHERE id = ?", (feature_id,), "Feature")
         database.execute(
             """
             INSERT INTO work_items (
-              id, title, kind, goal, description, is_draft, status, priority,
+              id, feature_id, title, kind, goal, description, is_draft, status, priority,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, 1, 'backlog', 'normal', ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'backlog', 'normal', ?, ?)
             """,
-            (identifier, title, kind, goal, cleaned_description, now, now),
+            (identifier, feature_id, title, kind, goal, cleaned_description, now, now),
         )
         _append_state_event(
             database,
@@ -1027,7 +1030,13 @@ def refine_draft_work_item(
                 status = 'ready', updated_at = ?
             WHERE id = ?
             """,
-            (feature_id, priority, cleaned_next_action, now, work_item_id),
+            (
+                feature_id if feature_id is not None else draft["feature_id"],
+                priority,
+                cleaned_next_action,
+                now,
+                work_item_id,
+            ),
         )
         for sort_order, criterion in enumerate(cleaned_criteria, start=1):
             criterion_id = _generate_id("AC")

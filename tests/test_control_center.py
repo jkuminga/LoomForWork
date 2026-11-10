@@ -496,6 +496,34 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         )
         self.assertEqual(stored["description"], "목업을 기준으로 구현한다.")
 
+    def test_create_draft_links_feature_and_refinement_preserves_it(self) -> None:
+        feature = self.client.post(
+            "/api/features", json={"title": "문서 연결", "goal": "원본을 선택한다."}
+        ).json()["feature"]
+        draft = self.create_draft(feature_id=feature["id"])
+        self.assertEqual(draft["feature_id"], feature["id"])
+        detail = self.client.get(f"/api/features/{feature['id']}").json()
+        self.assertEqual([item["id"] for item in detail["work_items"]], [draft["id"]])
+
+        refined = state_store.refine_draft_work_item(
+            str(draft["id"]), priority="normal", next_action="원본을 선택한다.",
+            acceptance_criteria=["원본을 선택할 수 있다."], actor="test",
+            database_path=self.database_path,
+        )
+        self.assertEqual(refined["feature_id"], feature["id"])
+        self.assertEqual(refined["status"], "ready")
+
+    def test_create_draft_rejects_unknown_feature(self) -> None:
+        response = self.client.post(
+            "/api/draft-work-items",
+            json={
+                "title": "문서 연결", "kind": "implementation", "goal": "원본을 선택한다.",
+                "feature_id": "FEAT-missing",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(state_store.list_work_items(database_path=self.database_path), [])
+
     def test_create_draft_normalizes_blank_optional_description(self) -> None:
         draft = self.create_draft(description="   ")
 

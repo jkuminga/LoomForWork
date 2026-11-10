@@ -635,6 +635,21 @@ legend { width: 100%; margin-bottom: 8px; color: var(--ink-soft); font: 700 calc
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(18,26,22,.42); backdrop-filter: blur(3px); }
 .modal { width: min(640px, 100%); max-height: min(760px, calc(100vh - 32px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper-bright); box-shadow: var(--shadow); }
+.draft-feature-control { display: flex; align-items: stretch; gap: 9px; }
+.draft-feature-control #draft-feature-name { flex: 1 1 auto; min-width: 0; width: auto; text-overflow: ellipsis; }
+.draft-feature-control #open-feature-picker { flex: 0 0 auto; white-space: nowrap; }
+.feature-picker-backdrop { z-index: 110; }
+.feature-picker-modal { width: min(560px, 100%); }
+.feature-picker-list { min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 12px; padding: 18px 22px; }
+.feature-picker-list .feature-picker-card { width: 100%; min-height: 0; padding: 14px 16px; }
+.feature-picker-card.is-selected { border-color: var(--forest-mid); box-shadow: 0 0 0 2px var(--forest-pale); }
+.feature-picker-goal { display: block; margin-top: 9px; color: var(--ink-soft); font-size: calc(12px * var(--font-scale)); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.feature-picker-card .feature-card-summary { margin-top: 13px; }
+.feature-picker-card .feature-progress-bar { margin-top: 10px; }
+.feature-picker-card .feature-card-bottom { padding-top: 12px; }
+.feature-picker-message { margin: 0; padding: 28px 12px; color: var(--ink-soft); font-size: calc(13px * var(--font-scale)); text-align: center; }
+.feature-picker-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; padding: 14px 22px; border-top: 1px solid var(--line); background: var(--paper); }
+@media (max-width: 440px) { .draft-feature-control { flex-wrap: wrap; }.draft-feature-control #open-feature-picker { width: 100%; } }
 .memo-modal { width: min(1040px, 100%); }
 .modal-header { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 19px 22px 17px; border-bottom: 1px solid var(--line); }
 .modal-header h2 { margin: 0; color: var(--forest); font: 650 calc(23px * var(--font-scale))/1.2 var(--serif); }

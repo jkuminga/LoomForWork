@@ -305,6 +305,17 @@
             <small class="field-error" data-error-for="kind"></small>
           </label>
 
+          <div class="field">
+            <span>Feature <em>선택</em></span>
+            <div class="draft-feature-control">
+              <input id="draft-feature-name" type="text" value="연결하지 않음" aria-label="선택한 Feature" readonly />
+              <input id="draft-feature" name="feature_id" type="hidden" value="" />
+              <button class="secondary-button" id="open-feature-picker" type="button" aria-haspopup="dialog" aria-controls="feature-picker-modal">Feature 선택</button>
+            </div>
+            <small class="field-hint" id="draft-feature-hint">소속 Feature가 있으면 선택하세요.</small>
+            <small class="field-error" data-error-for="feature_id"></small>
+          </div>
+
           <label class="field">
             <span>Goal <b>필수</b></span>
             <textarea id="draft-goal" name="goal" rows="3" maxlength="2000" placeholder="이 작업으로 얻고 싶은 결과를 적어주세요."></textarea>
@@ -326,6 +337,19 @@
             </button>
           </footer>
         </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop feature-picker-backdrop hidden" id="feature-picker-modal" role="presentation">
+      <section class="modal feature-picker-modal" role="dialog" aria-modal="true" aria-labelledby="feature-picker-title">
+        <header class="modal-header">
+          <div><p class="eyebrow">DRAFT WI</p><h2 id="feature-picker-title">상위 Feature 선택</h2></div>
+          <button class="icon-button" id="close-feature-picker" type="button" aria-label="Feature 선택 닫기">×</button>
+        </header>
+        <div class="feature-picker-list" id="feature-picker-list" aria-live="polite"></div>
+        <footer class="feature-picker-actions">
+          <button class="secondary-button" id="clear-feature-picker" type="button">연결하지 않음</button>
+        </footer>
       </section>
     </div>
 

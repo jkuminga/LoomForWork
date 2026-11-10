@@ -31,6 +31,9 @@ const RUN_STATUS_OPTIONS = [
 const SIDEBAR_STORAGE_KEY = "harness:sidebar-collapsed:v1";
 const FONT_SCALE_STORAGE_KEY = "harness:font-scale:v1";
 const FONT_SCALE_LEVELS = [50, 75, 100, 125, 150];
+let draftFeatureLoadVersion = 0;
+let draftFeatures = [];
+let draftFeatureLoadError = "";
 
 const state = {
   items: [],
@@ -1723,15 +1726,97 @@ function clearFormErrors() {
 
 function openModal() {
   clearFormErrors();
+  loadDraftFeatures();
   elements.modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   document.querySelector("#draft-title").focus();
 }
 
 function closeModal() {
+  closeFeaturePicker(false);
+  draftFeatureLoadVersion += 1;
   elements.modal.classList.add("hidden");
   document.body.style.overflow = "";
   document.querySelector("#open-draft-modal").focus();
+}
+
+async function loadDraftFeatures() {
+  const version = ++draftFeatureLoadVersion;
+  draftFeatures = [];
+  draftFeatureLoadError = "";
+  const hint = document.querySelector("#draft-feature-hint");
+  hint.textContent = "Feature 목록을 불러오는 중입니다.";
+  renderDraftFeaturePicker();
+  try {
+    const { features } = await api("/api/features");
+    if (version !== draftFeatureLoadVersion) return;
+    draftFeatures = features.sort((a, b) => a.title.localeCompare(b.title, "ko"));
+    hint.textContent = features.length ? "소속 Feature가 있으면 선택하세요." : "현재 등록된 Feature가 없습니다.";
+    const selectedId = document.querySelector("#draft-feature").value;
+    if (selectedId && !draftFeatures.some((feature) => feature.id === selectedId)) chooseDraftFeature(null, false);
+  } catch (error) {
+    if (version !== draftFeatureLoadVersion) return;
+    draftFeatureLoadError = error.message;
+    hint.textContent = "Feature 목록을 불러오지 못했습니다. 연결 없이 Draft를 만들 수 있습니다.";
+  }
+  renderDraftFeaturePicker();
+}
+
+function renderDraftFeaturePicker() {
+  const list = document.querySelector("#feature-picker-list");
+  if (draftFeatureLoadError) {
+    list.innerHTML = `<p class="feature-picker-message" role="alert">${escapeHtml(draftFeatureLoadError)}</p>`;
+    return;
+  }
+  if (!draftFeatures.length) {
+    const message = document.querySelector("#draft-feature-hint").textContent.includes("불러오는 중")
+      ? "Feature를 불러오는 중입니다." : "등록된 Feature가 없습니다.";
+    list.innerHTML = `<p class="feature-picker-message">${message}</p>`;
+    return;
+  }
+  const selectedId = document.querySelector("#draft-feature").value;
+  list.innerHTML = draftFeatures.map((feature) => {
+    const progress = feature.progress || {};
+    const eligible = Math.max(0, Number(progress.total_work_items || 0) - Number(progress.cancelled_count || 0));
+    const done = Number(progress.done_count || 0);
+    const percent = eligible ? Math.round(done / eligible * 100) : 0;
+    const segments = ["done", "in_progress", "ready", "backlog", "blocked"].map((status) => {
+      const count = Number(progress[`${status}_count`] || 0);
+      return count && eligible ? `<span class="feature-segment is-${status}" style="width:${count / eligible * 100}%"></span>` : "";
+    }).join("");
+    return `<button class="feature-card feature-picker-card${feature.id === selectedId ? " is-selected" : ""}" type="button" data-picker-feature-id="${escapeHtml(feature.id)}" aria-pressed="${feature.id === selectedId}">
+      <span class="feature-card-top"><span><strong>${escapeHtml(feature.title)}</strong><small>${escapeHtml(feature.id)}</small></span></span>
+      <span class="feature-picker-goal">${escapeHtml(feature.goal)}</span>
+      <span class="feature-card-summary"><span>${eligible ? `<b>${done} / ${eligible}</b> WI 완료` : "WI 없음"}</span><span>${eligible ? `${percent}%` : "진행률 계산 전"}</span></span>
+      <span class="feature-progress-bar${eligible ? "" : " is-empty"}">${segments}</span>
+      <span class="feature-card-bottom"><span class="feature-state is-${escapeHtml(feature.status)}">${escapeHtml(feature.status)}</span><span>${escapeHtml(feature.priority)} Priority</span></span>
+    </button>`;
+  }).join("");
+}
+
+function openFeaturePicker() {
+  const picker = document.querySelector("#feature-picker-modal");
+  renderDraftFeaturePicker();
+  elements.modal.inert = true;
+  elements.modal.setAttribute("aria-hidden", "true");
+  picker.classList.remove("hidden");
+  picker.querySelector("[data-picker-feature-id], #clear-feature-picker, #close-feature-picker").focus();
+}
+
+function closeFeaturePicker(restoreFocus = true) {
+  document.querySelector("#feature-picker-modal").classList.add("hidden");
+  elements.modal.inert = false;
+  elements.modal.removeAttribute("aria-hidden");
+  if (restoreFocus && !elements.modal.classList.contains("hidden")) {
+    document.querySelector("#open-feature-picker").focus();
+  }
+}
+
+function chooseDraftFeature(feature, restoreFocus = true) {
+  document.querySelector("#draft-feature").value = feature?.id || "";
+  document.querySelector("#draft-feature-name").value = feature?.title || "연결하지 않음";
+  renderDraftFeaturePicker();
+  if (restoreFocus) closeFeaturePicker();
 }
 
 function openEditModal() {
@@ -2045,6 +2130,7 @@ async function submitDraft(event) {
     kind: data.get("kind"),
     goal: data.get("goal"),
     description: data.get("description") || null,
+    feature_id: data.get("feature_id") || null,
   };
   elements.submitButton.disabled = true;
   elements.submitButton.querySelector(".submit-label").textContent = "저장 중";
@@ -2069,6 +2155,15 @@ document.querySelector("#open-draft-modal").addEventListener("click", () => {
 });
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
+document.querySelector("#open-feature-picker").addEventListener("click", openFeaturePicker);
+document.querySelector("#close-feature-picker").addEventListener("click", () => closeFeaturePicker());
+document.querySelector("#clear-feature-picker").addEventListener("click", () => chooseDraftFeature(null));
+document.querySelector("#feature-picker-list").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-picker-feature-id]");
+  if (!card) return;
+  const feature = draftFeatures.find((item) => item.id === card.dataset.pickerFeatureId);
+  if (feature) chooseDraftFeature(feature);
+});
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
 elements.nextActionsTrigger.addEventListener("click", () => setNextActionsOpen(!state.nextActionsOpen));
 document.querySelector("#next-actions-close").addEventListener("click", () => setNextActionsOpen(false));
@@ -2216,6 +2311,9 @@ elements.deleteConfirmation.addEventListener("input", () => {
 });
 elements.confirmDelete.addEventListener("click", deleteSelectedItem);
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeModal(); });
+document.querySelector("#feature-picker-modal").addEventListener("click", (event) => {
+  if (event.target.id === "feature-picker-modal") closeFeaturePicker();
+});
 elements.editModal.addEventListener("click", (event) => { if (event.target === elements.editModal) closeEditModal(); });
 elements.deleteModal.addEventListener("click", (event) => { if (event.target === elements.deleteModal) closeDeleteModal(); });
 elements.memoModal.addEventListener("click", (event) => { if (event.target === elements.memoModal) requestCloseMemoModal(); });
@@ -2223,6 +2321,7 @@ elements.memoCloseModal.addEventListener("click", (event) => { if (event.target 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!elements.memoCloseModal.classList.contains("hidden")) continueMemoEditing();
+  else if (!document.querySelector("#feature-picker-modal").classList.contains("hidden")) closeFeaturePicker();
   else if (!elements.deleteModal.classList.contains("hidden")) closeDeleteModal();
   else if (!elements.editModal.classList.contains("hidden")) closeEditModal();
   else if (!elements.modal.classList.contains("hidden")) closeModal();

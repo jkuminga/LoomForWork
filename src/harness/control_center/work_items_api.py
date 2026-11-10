@@ -47,6 +47,7 @@ class DraftWorkItemRequest(BaseModel):
     kind: WorkItemKind
     goal: str = Field(min_length=1, max_length=2000)
     description: str | None = Field(default=None, max_length=5000)
+    feature_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("description")
     @classmethod
@@ -215,6 +216,7 @@ def create_router() -> APIRouter:
             kind=payload.kind,
             goal=payload.goal,
             description=payload.description,
+            feature_id=payload.feature_id,
             actor="web_console",
             database_path=_database_path(request),
         )
