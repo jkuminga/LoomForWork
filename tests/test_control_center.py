@@ -78,6 +78,30 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertEqual(detail.json()["work_items"][0]["status"], "backlog")
         self.assertEqual(self.client.get("/api/features/FEAT-missing").status_code, 404)
 
+    def test_feature_status_can_be_changed_from_web_api(self) -> None:
+        created = self.client.post(
+            "/api/features", json={"title": "문서 연결", "goal": "문서를 선택한다."}
+        ).json()["feature"]
+        feature_id = created["id"]
+
+        updated = self.client.patch(
+            f"/api/features/{feature_id}/status", json={"status": "active"}
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["feature"]["status"], "active")
+        self.assertEqual(
+            self.client.get(f"/api/features/{feature_id}").json()["feature"]["status"],
+            "active",
+        )
+        self.assertEqual(
+            self.client.patch(f"/api/features/{feature_id}/status", json={"status": "ready"}).status_code,
+            422,
+        )
+        self.assertEqual(
+            self.client.patch("/api/features/FEAT-missing/status", json={"status": "active"}).status_code,
+            404,
+        )
+
     def test_next_actions_shows_only_ready_work_items_with_latest_run(self) -> None:
         draft = state_store.create_draft_work_item(
             title="초안 작업", kind="research", goal="구체화한다.",

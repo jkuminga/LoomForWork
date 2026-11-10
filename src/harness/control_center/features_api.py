@@ -19,6 +19,12 @@ class CreateFeatureRequest(BaseModel):
     priority: Literal["urgent", "high", "normal", "low"] = "normal"
 
 
+class ChangeFeatureStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["planned", "active", "paused", "completed", "cancelled"]
+
+
 def _database_path(request: Request) -> Path:
     return request.app.state.database_path
 
@@ -48,6 +54,19 @@ def create_router() -> APIRouter:
             goal=payload.goal,
             priority=payload.priority,
             actor="web_console",
+            database_path=_database_path(request),
+        )
+        return {"feature": feature}
+
+    @router.patch("/{feature_id}/status")
+    def change_feature_status(
+        feature_id: str, payload: ChangeFeatureStatusRequest, request: Request
+    ) -> dict[str, object]:
+        feature = state_store.change_feature_status(
+            feature_id,
+            payload.status,
+            actor="web_console",
+            reason="Feature status changed in web console",
             database_path=_database_path(request),
         )
         return {"feature": feature}

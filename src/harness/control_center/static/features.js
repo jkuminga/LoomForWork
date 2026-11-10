@@ -8,6 +8,7 @@
   const allStatusesButton = document.querySelector("#feature-status-all");
   const state = { features: [], selectedId: null, detailVersion: 0 };
   const labels = { planned: "Planned", active: "Active", paused: "Paused", completed: "Completed", cancelled: "Cancelled", backlog: "Backlog", ready: "Ready", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
+  const featureStatuses = ["planned", "active", "paused", "completed", "cancelled"];
   const order = ["done", "in_progress", "ready", "backlog", "blocked"];
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
@@ -96,9 +97,8 @@
         return `<button class="feature-wi-row" type="button" data-feature-work-item="${escape(item.id)}" aria-label="${escape(item.title)} WorkItem 상세 보기"><span><strong>${escape(item.title)}</strong><small>${escape(item.id)}</small></span><span class="feature-wi-status is-${escape(item.status)}">${escape(label)}</span></button>`;
       }).join("") : '<div class="feature-no-wi"><strong>아직 연결된 WI가 없습니다</strong><p>작업 항목을 연결하면 이곳에 목록과 진행 상황이 표시됩니다.</p></div>';
       panel.innerHTML = `<div class="feature-detail-head"><div class="feature-detail-top"><span>${escape(feature.id)}</span><button class="feature-detail-close" type="button" aria-label="Feature 상세 닫기">×</button></div><h2>${escape(feature.title)}</h2><p>${escape(feature.goal)}</p></div>
-        <div class="feature-detail-body"><section><h3>속성</h3><dl class="feature-properties"><dt>상태</dt><dd><span class="feature-state is-${escape(feature.status)}">${labels[feature.status] || escape(feature.status)}</span></dd><dt>우선순위</dt><dd>${escape(feature.priority)}</dd><dt>연결된 WI</dt><dd>${total}개</dd></dl></section>
-        <section><h3>진행 상황</h3><div class="feature-metric"><strong>${metric}</strong><span>${eligible ? `${done} / ${eligible} WI 완료` : "진행률 계산 전"}</span></div>${bar(feature)}${breakdown}</section>
-        <section><h3>연결된 Work Items <small>${items.length}</small></h3>${workItems}</section></div>`;
+        <div class="feature-detail-body"><section class="feature-info-card"><h3>Feature 정보</h3><dl class="feature-properties"><dt>상태</dt><dd><select class="feature-status-select" aria-label="Feature 상태 변경" data-feature-id="${escape(feature.id)}" data-current-status="${escape(feature.status)}">${featureStatuses.map((status) => `<option value="${status}"${status === feature.status ? " selected" : ""}>${labels[status]}</option>`).join("")}</select></dd><dt>우선순위</dt><dd>${escape(feature.priority)}</dd></dl><p class="feature-status-error hidden" role="alert"></p></section>
+        <section class="feature-work-items-section"><h3>Work Items <small>${items.length}</small></h3><div class="feature-metric"><strong>${metric}</strong><span>${eligible ? `${done} / ${eligible} WI 완료` : "진행률 계산 전"}</span></div>${bar(feature)}${breakdown}<h4>연결된 목록</h4>${workItems}</section></div>`;
       panel.querySelector(".feature-detail-close").focus();
     } catch (error) {
       if (version === state.detailVersion) panel.innerHTML = `<div class="feature-detail-loading" role="alert">${escape(error.message)}<button class="feature-detail-close" type="button" aria-label="닫기">×</button></div>`;
@@ -130,6 +130,36 @@
     const workItemId = row.dataset.featureWorkItem;
     closeDetail();
     document.dispatchEvent(new CustomEvent("feature:open-work-item", { detail: { workItemId } }));
+  });
+  panel.addEventListener("change", async (event) => {
+    const select = event.target.closest(".feature-status-select");
+    if (!select) return;
+    const previous = select.dataset.currentStatus;
+    if (select.value === previous) return;
+    const id = select.dataset.featureId;
+    const version = state.detailVersion;
+    const errorNode = panel.querySelector(".feature-status-error");
+    errorNode.classList.add("hidden");
+    select.disabled = true;
+    try {
+      const { feature } = await request(`/api/features/${encodeURIComponent(id)}/status`, {
+        method: "PATCH", body: JSON.stringify({ status: select.value }),
+      });
+      state.features = state.features.map((item) => item.id === id ? feature : item);
+      render();
+      if (version === state.detailVersion) {
+        select.value = feature.status;
+        select.dataset.currentStatus = feature.status;
+      }
+    } catch (error) {
+      if (version === state.detailVersion) {
+        select.value = previous;
+        errorNode.textContent = error.message;
+        errorNode.classList.remove("hidden");
+      }
+    } finally {
+      select.disabled = false;
+    }
   });
   scrim.addEventListener("click", closeDetail);
   document.addEventListener("keydown", (event) => {
