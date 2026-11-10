@@ -657,7 +657,9 @@ legend { width: 100%; margin-bottom: 8px; color: var(--ink-soft); font: 700 calc
 .memo-draft-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 10px; background: var(--forest-pale); color: var(--forest-mid); font: 700 calc(9px * var(--font-scale))/1 var(--sans); }
 .memo-draft-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .memo-draft-status.is-restored { background: var(--amber-pale); color: var(--amber); }
-#draft-form, #edit-form, #memo-form { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 21px 22px 0; }
+#draft-form, #edit-form, #memo-form, #feature-create-form { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 21px 22px 0; }
+#feature-create-form .field { gap: 9px; margin-bottom: 19px; }
+#feature-create-form .field > span { line-height: 1.2; }
 #memo-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "error error" "title author" "kind kind" "visibility visibility" "content content" "actions actions"; column-gap: 16px; align-content: start; }
 #memo-form .form-error { grid-area: error; }
 #memo-form .memo-title-field { grid-area: title; }
