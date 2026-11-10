@@ -105,6 +105,7 @@ const elements = {
   memoDraftStatus: document.querySelector("#memo-draft-status"),
   memoCloseModal: document.querySelector("#memo-close-modal"),
   workItemsView: document.querySelector("#work-items-view"),
+  featuresView: document.querySelector("#features-view"),
   runsView: document.querySelector("#runs-view"),
   overviewView: document.querySelector("#overview-view"),
   overviewGraph: document.querySelector("#overview-graph"),
@@ -1659,7 +1660,10 @@ async function loadRuns() {
 }
 
 async function switchView(view, selectedWorkItemId = null, selectedRunId = null) {
+  if (state.currentView === "features" && view !== "features") window.featuresPage.closeDetail();
   state.currentView = view;
+  document.body.dataset.currentView = view;
+  const isFeatures = view === "features";
   const isOverview = view === "overview";
   const isRuns = view === "runs";
   const isMemory = view === "memory-graph";
@@ -1671,22 +1675,28 @@ async function switchView(view, selectedWorkItemId = null, selectedRunId = null)
   document.querySelector("#nav-memory-graph").classList.toggle("active", isMemory);
   document.querySelector("#nav-memory-graph").toggleAttribute("aria-current", isMemory);
   elements.overviewView.classList.toggle("hidden", !isOverview);
-  elements.workItemsView.classList.toggle("hidden", isOverview || isRuns || isMemory || isTimeline);
+  elements.featuresView.classList.toggle("hidden", !isFeatures);
+  elements.workItemsView.classList.toggle("hidden", isOverview || isFeatures || isRuns || isMemory || isTimeline);
   elements.runsView.classList.toggle("hidden", !isRuns);
   document.querySelector("#nav-overview").classList.toggle("active", isOverview);
-  document.querySelector("#nav-work-items").classList.toggle("active", !isOverview && !isRuns && !isMemory && !isTimeline);
+  document.querySelector("#nav-features").classList.toggle("active", isFeatures);
+  document.querySelector("#nav-work-items").classList.toggle("active", !isOverview && !isFeatures && !isRuns && !isMemory && !isTimeline);
   document.querySelector("#nav-runs").classList.toggle("active", isRuns);
   document.querySelector("#nav-overview").toggleAttribute("aria-current", isOverview);
-  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isOverview && !isRuns && !isMemory && !isTimeline);
+  document.querySelector("#nav-features").toggleAttribute("aria-current", isFeatures);
+  document.querySelector("#nav-work-items").toggleAttribute("aria-current", !isOverview && !isFeatures && !isRuns && !isMemory && !isTimeline);
   document.querySelector("#nav-runs").toggleAttribute("aria-current", isRuns);
-  const title = isTimeline ? "Activity Timeline" : isMemory ? "MemoryGraph" : isOverview ? "Overview" : isRuns ? "Runs" : "Work Items";
+  const title = isTimeline ? "Activity Timeline" : isMemory ? "MemoryGraph" : isOverview ? "Overview" : isFeatures ? "Features" : isRuns ? "Runs" : "Work Items";
   document.querySelector("#page-title").textContent = title;
   document.querySelector("#page-crumb").textContent = title;
   elements.visibleCount.classList.toggle("hidden", isTimeline);
-  document.querySelector("#open-draft-modal").classList.toggle("hidden", isOverview || isRuns || isMemory || isTimeline);
+  const createButton = document.querySelector("#open-draft-modal");
+  createButton.classList.toggle("hidden", isOverview || isRuns || isMemory || isTimeline);
+  createButton.innerHTML = isFeatures ? '<span aria-hidden="true">＋</span> 새 Feature' : '<span aria-hidden="true">＋</span> 새 Draft WI 생성';
   if (isTimeline) elements.dockSummary.textContent = "Activity Timeline · 추후 추가될 기능";
   if (isMemory) await window.memoryGraph.load();
   else if (isOverview) await loadOverview();
+  else if (isFeatures) await window.featuresPage.load();
   else if (isRuns) {
     state.runsWorkItemId = selectedWorkItemId;
     state.pendingRunId = selectedRunId;
@@ -2053,7 +2063,10 @@ async function submitDraft(event) {
   }
 }
 
-document.querySelector("#open-draft-modal").addEventListener("click", openModal);
+document.querySelector("#open-draft-modal").addEventListener("click", () => {
+  if (state.currentView === "features") window.featuresPage.openCreate();
+  else openModal();
+});
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
@@ -2069,7 +2082,13 @@ elements.nextActionsList.addEventListener("click", (event) => {
 });
 document.querySelector("#brand-home").addEventListener("click", () => switchView("overview"));
 document.querySelector("#nav-overview").addEventListener("click", (event) => { event.preventDefault(); switchView("overview"); });
+document.querySelector("#nav-features").addEventListener("click", (event) => { event.preventDefault(); switchView("features"); });
 document.querySelector("#nav-work-items").addEventListener("click", (event) => { event.preventDefault(); switchView("work-items"); });
+document.addEventListener("feature:open-work-item", (event) => {
+  state.statusFilters.clear();
+  state.kindFilters.clear();
+  switchView("work-items", event.detail.workItemId);
+});
 document.querySelector("#nav-runs").addEventListener("click", (event) => { event.preventDefault(); switchView("runs"); });
 document.querySelector("#nav-activity-timeline").addEventListener("click", (event) => { event.preventDefault(); switchView("activity-timeline"); });
 document.querySelector("#refresh-overview").addEventListener("click", () => loadOverview());

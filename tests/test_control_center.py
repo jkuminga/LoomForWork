@@ -51,6 +51,33 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertIn('id="font-scale-value"', response.text)
         self.assertIn('id="font-scale-increase"', response.text)
 
+    def test_feature_gallery_api_includes_empty_progress_and_linked_work_items(self) -> None:
+        created = self.client.post(
+            "/api/features",
+            json={"title": "문서 연결", "goal": "문서를 선택한다.", "priority": "high"},
+        )
+        self.assertEqual(created.status_code, 201)
+        feature = created.json()["feature"]
+        self.assertEqual(feature["status"], "planned")
+
+        empty = self.client.get(f"/api/features/{feature['id']}")
+        self.assertEqual(empty.status_code, 200)
+        self.assertEqual(empty.json()["feature"]["progress"]["total_work_items"], 0)
+        self.assertEqual(empty.json()["work_items"], [])
+
+        work_item = state_store.create_work_item(
+            title="Google Docs 연결", kind="implementation", goal="원본에 접근한다.",
+            next_action="연결 흐름 확인", feature_id=feature["id"], actor="test",
+            database_path=self.database_path,
+        )
+        listed = self.client.get("/api/features")
+        detail = self.client.get(f"/api/features/{feature['id']}")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()["features"][0]["progress"]["total_work_items"], 1)
+        self.assertEqual(detail.json()["work_items"][0]["id"], work_item["id"])
+        self.assertEqual(detail.json()["work_items"][0]["status"], "backlog")
+        self.assertEqual(self.client.get("/api/features/FEAT-missing").status_code, 404)
+
     def test_next_actions_shows_only_ready_work_items_with_latest_run(self) -> None:
         draft = state_store.create_draft_work_item(
             title="초안 작업", kind="research", goal="구체화한다.",

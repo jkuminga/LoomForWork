@@ -12,7 +12,9 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
     <link rel="stylesheet" href="/static/styles.css?v=next-actions-highlight-1" />
-    <script src="/static/app.js?v=next-actions-highlight-1" defer></script>
+    <link rel="stylesheet" href="/static/features.css?v=feature-status-pills-5" />
+    <script src="/static/app.js?v=feature-header-2" defer></script>
+    <script src="/static/features.js?v=feature-status-pills-5" defer></script>
     <script src="/static/memory-graph.js?v=1" defer></script>
     <link rel="stylesheet" href="/static/memory-graph.css?v=1" />
   </head>
@@ -29,7 +31,7 @@
 
         <nav class="nav-list">
           <a id="nav-overview" href="#overview" aria-label="Overview" title="Overview"><span>◫</span>Overview</a>
-          <a href="#" aria-label="Features" title="Features" aria-disabled="true"><span>◇</span>Features</a>
+          <a id="nav-features" href="#features" aria-label="Features" title="Features"><span>◇</span>Features</a>
           <a class="active" id="nav-work-items" href="#work-items" aria-label="Work Items" title="Work Items" aria-current="page"><span>≡</span>Work Items</a>
           <a id="nav-runs" href="#runs" aria-label="Runs" title="Runs"><span>▷</span>Runs</a>
           <a id="nav-memory-graph" href="#memory-graph" aria-label="MemoryGraph" title="MemoryGraph"><span>⌘</span>MemoryGraph</a>
@@ -69,15 +71,37 @@
                 <span class="visible-count" id="visible-count">0 visible</span>
               </div>
             </div>
-            <button class="primary-button" id="open-draft-modal" type="button">
-              <span aria-hidden="true">＋</span> 새 Draft WI 생성
-            </button>
+            <div class="page-heading-actions">
+              <button class="secondary-button" id="refresh-features" type="button">↻ 새로고침</button>
+              <button class="primary-button" id="open-draft-modal" type="button">
+                <span aria-hidden="true">＋</span> 새 Draft WI 생성
+              </button>
+            </div>
           </div>
         </header>
 
         <main class="overview-workspace hidden" id="activity-timeline-view">
           <p class="timeline-coming-soon">추후 추가될 기능입니다.</p>
         </main>
+
+        <main class="feature-workspace hidden" id="features-view">
+          <section class="feature-toolbar" aria-label="Feature 필터">
+            <input id="feature-search" type="search" maxlength="200" placeholder="Feature 제목·ID 검색" aria-label="Feature 검색" />
+            <div class="feature-status-filters" role="group" aria-label="Feature 상태 필터">
+              <button class="feature-status-pill is-all" id="feature-status-all" type="button" aria-pressed="true">All</button>
+              <label class="feature-status-pill is-planned"><input type="checkbox" value="planned" checked /><span class="feature-status-swatch" aria-hidden="true"></span>Planned</label>
+              <label class="feature-status-pill is-active"><input type="checkbox" value="active" checked /><span class="feature-status-swatch" aria-hidden="true"></span>Active</label>
+              <label class="feature-status-pill is-paused"><input type="checkbox" value="paused" checked /><span class="feature-status-swatch" aria-hidden="true"></span>Paused</label>
+              <label class="feature-status-pill is-completed"><input type="checkbox" value="completed" checked /><span class="feature-status-swatch" aria-hidden="true"></span>Completed</label>
+              <label class="feature-status-pill is-cancelled"><input type="checkbox" value="cancelled" checked /><span class="feature-status-swatch" aria-hidden="true"></span>Cancelled</label>
+            </div>
+            <span id="feature-visible-count" aria-live="polite"></span>
+          </section>
+          <div id="feature-gallery" class="feature-gallery" aria-live="polite"></div>
+        </main>
+
+        <div class="feature-scrim hidden" id="feature-scrim"></div>
+        <aside class="feature-detail" id="feature-detail" role="dialog" aria-modal="true" aria-label="Feature 상세 정보" aria-hidden="true" inert></aside>
 
         <main class="overview-workspace hidden" id="overview-view">
           <section class="overview-toolbar" aria-label="Overview 그래프 도구">
@@ -398,6 +422,19 @@
           <button class="memo-close-button memo-close-discard" id="discard-memo-changes" type="button">변경사항 버리기</button>
           <button class="memo-close-button memo-close-save" id="keep-memo-draft" type="button">임시 저장 후 닫기</button>
         </footer>
+      </section>
+    </div>
+
+    <div class="modal-backdrop hidden" id="feature-create-modal" role="presentation">
+      <section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="feature-create-title">
+        <header class="modal-header"><div><h2 id="feature-create-title">새 Feature</h2></div><button class="icon-button" id="close-feature-create" type="button" aria-label="닫기">×</button></header>
+        <form id="feature-create-form" novalidate>
+          <div class="form-error hidden" id="feature-create-error" role="alert"></div>
+          <label class="field"><span>Title <b>필수</b></span><input name="title" type="text" required maxlength="200" /></label>
+          <label class="field"><span>Goal <b>필수</b></span><textarea name="goal" rows="4" required maxlength="2000"></textarea></label>
+          <label class="field"><span>Priority</span><select name="priority"><option value="normal">Normal</option><option value="urgent">Urgent</option><option value="high">High</option><option value="low">Low</option></select></label>
+          <footer class="modal-actions"><button class="secondary-button" id="cancel-feature-create" type="button">취소</button><button class="primary-button" type="submit">Feature 생성</button></footer>
+        </form>
       </section>
     </div>
   </body>

@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import state_store
+from .features_api import create_router as create_features_router
 from .overview_api import create_router as create_overview_router
 from .memory_graph_api import create_router as create_memory_graph_router
 from .runs_api import create_router as create_runs_router
@@ -57,6 +58,7 @@ def create_app(
     application.state.database_path = selected_database
     application.state.memory_database_path = Path(memory_database_path or os.environ.get("HARNESS_MEMORY_DB_PATH") or selected_database.with_name("memorygraph.db"))
     application.include_router(create_memory_graph_router())
+    application.include_router(create_features_router())
     application.include_router(create_router())
     application.include_router(create_overview_router())
     application.include_router(create_runs_router())
