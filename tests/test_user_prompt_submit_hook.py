@@ -484,7 +484,10 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         launcher = work_item_picker.terminal_launcher_path_for(request_path)
         self.assertEqual(
             run.call_args.args[0],
-            ["open", "-g", "-n", "-a", "Terminal", str(launcher)],
+            [
+                "open", "-g", "-n", "-a", "Terminal",
+                "--env", "DISABLE_AUTO_UPDATE=true", str(launcher),
+            ],
         )
         self.assertEqual(
             work_item_picker.terminal_process_id_path_for(request_path).read_text(
@@ -492,6 +495,19 @@ class UserPromptSubmitHookTests(unittest.TestCase):
             ),
             "200\n",
         )
+
+    def test_picker_launch_disables_oh_my_zsh_update_prompt(self) -> None:
+        request_path = self.root / "selections" / "selection.request.json"
+        with (
+            patch.object(user_prompt_submit, "_terminal_process_ids", side_effect=[{100}, {100, 200}]),
+            patch.object(user_prompt_submit.subprocess, "run") as run,
+        ):
+            user_prompt_submit.launch_terminal_picker(request_path)
+
+        command = run.call_args.args[0]
+        self.assertIn("--env", command)
+        self.assertIn("DISABLE_AUTO_UPDATE=true", command)
+        self.assertLess(command.index("--env"), command.index(str(work_item_picker.terminal_launcher_path_for(request_path))))
 
     def test_hook_focuses_only_after_fzf_marks_the_picker_ready(self) -> None:
         request_path = self.root / "selections" / "selection.request.json"

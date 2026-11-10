@@ -181,7 +181,10 @@ exit "$picker_status"
         launcher_path.chmod(0o700)
         existing_process_ids = _terminal_process_ids()
         subprocess.run(
-            ["open", "-g", "-n", "-a", "Terminal", str(launcher_path)],
+            [
+                "open", "-g", "-n", "-a", "Terminal",
+                "--env", "DISABLE_AUTO_UPDATE=true", str(launcher_path),
+            ],
             check=True,
         )
     except (OSError, subprocess.CalledProcessError) as error:
