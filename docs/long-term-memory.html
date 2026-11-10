@@ -16,8 +16,8 @@
 <p>동작·책임·실패 정책은 이 문서, 필드·타입·제약은 <a href="./long-term-memory-schema.html">장기기억 스키마</a>를 따른다. 현재 저장소 코드 기준이며, 외부 제품의 최신 버전 안내가 아니다.</p></header>
 <nav aria-label="문서 목차"><a href="#ownership">역할</a><a href="#flow">전체 흐름</a><a href="#recall">기억 조회</a><a href="#capture">후보 기록</a><a href="#finalize">검토·저장</a><a href="#failure">실패·재시도</a><a href="#runtime">구현·버전</a><a href="#follow-up">남은 보강</a></nav>
 <section id="ownership"><h2>1. 같은 사실의 정본을 나눈다</h2><div class="columns">
-<article class="panel"><h3>State DB · 지금의 작업과 검토 전 후보</h3><p><code>.harness/state.db</code>는 WI(작업 목표), Run(한 번의 실행), 결과·완료 조건과 <code>memory_candidates</code>(장기기억 후보)를 저장한다. 후보의 저장 계획과 처리 상태도 이곳이 정본이다.</p></article>
-<article class="panel"><h3>MemoryGraph · 다음에도 재사용할 지식</h3><p><code>.harness/memorygraph.db</code>는 검토된 Memory(기억 한 건)와 기억 사이의 방향 관계를 저장한다. 진행률·일회성 상태·대화 전문·도구 로그를 대신 보관하지 않는다.</p></article></div>
+<article class="panel"><h3>State DB · 지금의 작업과 검토 전 후보</h3><p><code>&lt;git-common-dir&gt;/harness-data/state.db</code>는 WI(작업 목표), Run(한 번의 실행), 결과·완료 조건과 <code>memory_candidates</code>(장기기억 후보)를 저장한다. 후보의 저장 계획과 처리 상태도 이곳이 정본이다.</p></article>
+<article class="panel"><h3>MemoryGraph · 다음에도 재사용할 지식</h3><p><code>&lt;git-common-dir&gt;/harness-data/memorygraph.db</code>는 검토된 Memory(기억 한 건)와 기억 사이의 방향 관계를 저장한다. 진행률·일회성 상태·대화 전문·도구 로그를 대신 보관하지 않는다.</p></article></div>
 <p>두 DB는 별도 SQLite 파일이다. 후보는 <code>run_id</code>로 실행에 연결되고, 저장 성공 후 <code>memory_ref</code>(실제 기억 참조)로 MemoryGraph를 가리킨다. 필드 상세는 <a href="./long-term-memory-schema.html#candidate">후보 스키마</a>에만 정의한다.</p></section>
 <section id="flow"><h2>2. 한 작업에서의 흐름</h2><ol class="flow">
 <li><b>01 · 시작</b><code>start_work()</code> 성공 후 PostToolUse가 Binding(세션↔Run 연결)을 저장하고 관련 기억을 조회한다.</li>

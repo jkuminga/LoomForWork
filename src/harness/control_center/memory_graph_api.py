@@ -37,6 +37,9 @@ def connect(path):
     db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
     db.row_factory = sqlite3.Row
     try:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        if version != 1:
+            raise sqlite3.DatabaseError(f"memorygraph.db schema version {version} is unsupported")
         db.execute("BEGIN")
         yield db
     finally:

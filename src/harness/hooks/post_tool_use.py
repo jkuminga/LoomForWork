@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from .. import runtime_binding, state_store
+from .. import runtime_binding, shared_paths, state_store
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -598,8 +598,7 @@ def main() -> int:
     bindings_directory = os.environ.get("HARNESS_BINDINGS_DIRECTORY")
     result = dispatch_post_tool_use(
         payload,
-        database_path=os.environ.get("HARNESS_STATE_DATABASE")
-        or state_store.DEFAULT_DATABASE_PATH,
+        database_path=shared_paths.state_database_from_environment(),
         bindings_directory=bindings_directory
         or runtime_binding.DEFAULT_BINDINGS_DIRECTORY,
     )

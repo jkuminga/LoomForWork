@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
-from .. import review_plans, runtime_binding, state_store, work_item_picker
+from .. import review_plans, runtime_binding, shared_paths, state_store, work_item_picker
 from . import ups_recovery
 
 
@@ -55,9 +55,9 @@ def strip_work_prefix(prompt: str) -> str | None:
 
 
 def _selection_directory(database_path: str | Path) -> Path:
-    """Locate transient selection files beside the state database."""
+    """Locate transient selection files in this worktree."""
 
-    return Path(database_path).resolve().parent / SELECTIONS_DIRECTORY_NAME
+    return state_store.PROJECT_ROOT / ".harness" / "runtime" / SELECTIONS_DIRECTORY_NAME
 
 
 def _selection_packet(status: str, **fields: Any) -> dict[str, Any]:
@@ -551,7 +551,7 @@ def main() -> int:
         payload = {}
     result = dispatch_user_prompt_submit(
         payload,
-        database_path=os.environ.get("HARNESS_STATE_DATABASE") or state_store.DEFAULT_DATABASE_PATH,
+        database_path=shared_paths.state_database_from_environment(),
     )
     json.dump(result, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")

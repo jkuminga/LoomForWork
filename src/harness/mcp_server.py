@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from mcp.server import MCPServer
 
-from . import review_plans, state_store
+from . import review_plans, shared_paths, state_store
 
 
 def create_server(
@@ -732,14 +732,14 @@ def create_server(
     return server
 
 
-mcp = create_server(os.environ.get("HARNESS_STATE_DB", state_store.DEFAULT_DATABASE_PATH))
+mcp = create_server(shared_paths.state_database_from_environment())
 
 
 def main() -> None:
     """Run the local MCP server over stdio for Codex."""
 
     state_store.initialize_database(
-        os.environ.get("HARNESS_STATE_DB", state_store.DEFAULT_DATABASE_PATH)
+        shared_paths.state_database_from_environment()
     )
     mcp.run()
 

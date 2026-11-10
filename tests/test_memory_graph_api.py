@@ -28,6 +28,7 @@ class MemoryGraphTests(unittest.TestCase):
             CREATE TABLE relationships (id TEXT PRIMARY KEY, from_id TEXT, to_id TEXT, rel_type TEXT,
               strength REAL, context TEXT);
             """)
+            db.execute("PRAGMA user_version = 1")
             for i, kind in enumerate(["project", "error", "fix", "workflow"]):
                 db.execute("INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?)", (str(i),kind,f"Title {i}","summary", "<script>content</script>", '["tag"]',.8,.9,"2026-10-01T00:00:00Z","2026-10-01T00:00:00Z",'{"harness_candidate_id":"secret"}'))
             db.execute("INSERT INTO relationships VALUES ('r','1','2','SOLVES',.7,'relation context')")
@@ -76,6 +77,12 @@ class MemoryGraphTests(unittest.TestCase):
         response = self.client.get("/api/memory-graph")
         self.assertEqual(response.status_code,503)
         self.assertNotIn(str(self.root),response.text)
+
+    def test_incompatible_schema_version_is_unavailable(self):
+        self.seed()
+        with sqlite3.connect(self.memory) as db:
+            db.execute("PRAGMA user_version = 2")
+        self.assertEqual(self.client.get("/api/memory-graph").status_code, 503)
 
     def test_layout_is_finite_repeatable_and_spaced(self):
         source = Path("src/harness/control_center/static/memory-graph.js").read_text().split("(() => {")[0]

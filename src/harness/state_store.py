@@ -17,10 +17,13 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
+from . import shared_paths
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATABASE_PATH = PROJECT_ROOT / ".harness" / "state.db"
+DEFAULT_DATABASE_PATH = shared_paths.STATE_DATABASE
 SCHEMA_PATH = PROJECT_ROOT / ".harness" / "schema.sql"
+STATE_SCHEMA_VERSION = 1
 COMPLETION_RECOMMENDED_NEXT_ACTION = (
     "[완료 확인 권장] 현재 AC 기준으로 완료 가능합니다. "
     "결과를 확인해 WI를 완료하거나, 추가 작업을 계속 진행하세요."
@@ -150,13 +153,31 @@ def _require_row(
 
 def open_database(
     database_path: str | Path = DEFAULT_DATABASE_PATH,
+    *, allow_legacy_schema: bool = False,
 ) -> sqlite3.Connection:
     """Open the state DB and guarantee that SQLite foreign keys are active."""
 
     path = Path(database_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.resolve() == DEFAULT_DATABASE_PATH.resolve() and not path.exists():
+        try:
+            shared_paths.require_migrated_before_create(DEFAULT_DATABASE_PATH, "state.db")
+        except RuntimeError as error:
+            raise StateStoreError(str(error)) from error
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if path.resolve() == DEFAULT_DATABASE_PATH.resolve():
+        path.parent.chmod(0o700)
+    is_new = not path.exists()
     database = sqlite3.connect(path)
+    if is_new and path.resolve() == DEFAULT_DATABASE_PATH.resolve():
+        path.chmod(0o600)
     database.row_factory = sqlite3.Row
+    version = database.execute("PRAGMA user_version").fetchone()[0]
+    has_schema = database.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone()
+    if has_schema and version != STATE_SCHEMA_VERSION and not (allow_legacy_schema and version == 0):
+        database.close()
+        raise ConflictError(
+            f"state.db schema version {version} differs from supported version {STATE_SCHEMA_VERSION}"
+        )
     database.execute("PRAGMA foreign_keys = ON")
     enabled = database.execute("PRAGMA foreign_keys").fetchone()[0]
     if enabled != 1:
@@ -168,10 +189,11 @@ def open_database(
 def initialize_database(
     database_path: str | Path = DEFAULT_DATABASE_PATH,
     schema_path: str | Path = SCHEMA_PATH,
+    *, allow_legacy_schema: bool = False,
 ) -> dict[str, Any]:
     """Create or safely reapply the versioned schema to a state database."""
 
-    database = open_database(database_path)
+    database = open_database(database_path, allow_legacy_schema=allow_legacy_schema)
     try:
         # These two migrations run before schema.sql so a legacy artifacts table
         # cannot make the new source_event_id index fail during schema loading.
@@ -192,6 +214,7 @@ def initialize_database(
         _migrate_memory_candidate_finalize_fields(database)
         _migrate_work_item_memos(database)
         _migrate_work_item_status_transition(database)
+        database.execute(f"PRAGMA user_version = {STATE_SCHEMA_VERSION}")
         database.commit()
     except (OSError, sqlite3.Error) as error:
         raise StateStoreError(f"database initialization failed: {error}") from error

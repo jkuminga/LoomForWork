@@ -2,11 +2,12 @@
 # Archive or restore the durable Harness databases that Git intentionally ignores.
 #
 # Archive only:
-#   - .harness/state.db       (WorkItem, Run, Artifact state)
-#   - .harness/memorygraph.db (long-term MemoryGraph state)
+#   - <git-common-dir>/harness-data/state.db       (WorkItem, Run, Artifact state)
+#   - <git-common-dir>/harness-data/memorygraph.db (long-term MemoryGraph state)
 #
 # Intentionally excluded:
-#   - .harness/runtime/       (active-session bindings; unsafe to transfer)
+#   - <git-common-dir>/harness-data/runtime/ (active-session bindings; unsafe to transfer)
+#   - <git-common-dir>/harness-data/review-plans/ (Run review decisions)
 #   - .venv/                  (rebuildable Python environment)
 #   - .harness/schema.sql     (tracked by Git)
 
@@ -136,8 +137,7 @@ if git -C "$worktree" rev-parse --git-common-dir >/dev/null 2>&1; then
   project_identity="$git_common_dir"
   project_name="$(basename "$(dirname "$git_common_dir")")"
 else
-  project_identity="$worktree"
-  project_name="$(basename "$worktree")"
+  fail "worktree is not a Git repository: $worktree"
 fi
 project_key="$(printf '%s' "$project_identity" | shasum -a 256 | awk '{print substr($1, 1, 12)}')"
 project_archive="$archive_root/${project_name}-${project_key}"
@@ -147,7 +147,7 @@ project_archive="$archive_root/${project_name}-${project_key}"
 database_names=(state.db memorygraph.db)
 
 archive_databases() {
-  local source_dir="$worktree/.harness"
+  local source_dir="$git_common_dir/harness-data"
   local staging snapshot_id snapshot_dir database source destination manifest
   local archived_count=0
 
@@ -156,7 +156,7 @@ archive_databases() {
     rmdir "$staging"
   }
 
-  [[ -d "$source_dir" ]] || fail "no .harness directory in $worktree"
+  [[ -d "$source_dir" ]] || fail "no shared Harness data directory in $git_common_dir"
   mkdir -p "$project_archive"
   chmod 700 "$project_archive"
   staging="$(mktemp -d "$project_archive/.staging.XXXXXX")"
@@ -225,7 +225,7 @@ restore_databases() {
     [[ "$actual" == "$expected" ]] || fail "checksum mismatch for snapshot database: $name"
   done < "$snapshot_dir/manifest.tsv"
 
-  target_dir="$worktree/.harness"
+  target_dir="$git_common_dir/harness-data"
   for database in "${database_names[@]}"; do
     destination="$target_dir/$database"
     if [[ -e "$destination" && "$replace_existing" != true ]]; then

@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from . import state_store
+from . import shared_paths
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BINDINGS_DIRECTORY = PROJECT_ROOT / ".harness" / "runtime" / "bindings"
+DEFAULT_BINDINGS_DIRECTORY = shared_paths.BINDINGS_DIRECTORY
 
 _BINDING_FIELDS = {
     "session_id",
@@ -88,6 +89,8 @@ def save_binding(
     directory = Path(bindings_directory)
     directory.mkdir(parents=True, exist_ok=True)
     directory.chmod(0o700)
+    if directory.resolve() == DEFAULT_BINDINGS_DIRECTORY.resolve():
+        directory.parent.chmod(0o700)
     destination = _binding_path(session_id, directory)
     current = load_binding(session_id, bindings_directory=directory)
     if current is not None and (

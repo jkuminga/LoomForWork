@@ -57,7 +57,7 @@ class StateStoreLifecycleTests(unittest.TestCase):
         database.commit()
         database.close()
 
-        state_store.initialize_database(legacy_path)
+        state_store.initialize_database(legacy_path, allow_legacy_schema=True)
 
         database = state_store.open_database(legacy_path)
         columns = {
@@ -105,7 +105,7 @@ class StateStoreLifecycleTests(unittest.TestCase):
         database.commit()
         database.close()
 
-        state_store.initialize_database(legacy_path)
+        state_store.initialize_database(legacy_path, allow_legacy_schema=True)
 
         database = state_store.open_database(legacy_path)
         columns = {
@@ -1659,7 +1659,7 @@ class StateStoreLifecycleTests(unittest.TestCase):
         database.commit()
         database.close()
 
-        state_store.initialize_database(legacy_path)
+        state_store.initialize_database(legacy_path, allow_legacy_schema=True)
         state_store.initialize_database(legacy_path)
         database = state_store.open_database(legacy_path)
         migrated = database.execute(

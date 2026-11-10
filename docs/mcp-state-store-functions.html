@@ -174,7 +174,7 @@
           </tbody>
         </table>
       </div>
-      <p class="note"><strong>Review Plan 계약:</strong> Run마다 <code>.harness/review-plans/&lt;run_id&gt;.json</code> 파일 하나를 둔다. 새 계획(v2)은 <code>schema_version</code>, <code>run_id</code>, <code>work_item_id</code>, <code>snapshot_max_seq</code>(계획에 포함할 마지막 EVT 순번), <code>decisions</code>(Artifact·Evidence 등록 판단과 이유), <code>excluded_event_ids</code>(등록하지 않을 EVT ID)를 담는다. 두 목록이 해당 순번까지의 모든 EVT를 빠짐없이 한 번씩 포함하는지 검증한다. 기존 v1의 <code>events</code> 계획도 읽고 복구한다. 판단 파일은 재작성하지 않으며, 실제 적용 결과의 정본은 DB다.</p>
+      <p class="note"><strong>Review Plan 계약:</strong> Run마다 <code>&lt;git-common-dir&gt;/harness-data/review-plans/&lt;run_id&gt;.json</code> 파일 하나를 둔다. 새 계획(v2)은 <code>schema_version</code>, <code>run_id</code>, <code>work_item_id</code>, <code>snapshot_max_seq</code>(계획에 포함할 마지막 EVT 순번), <code>decisions</code>(Artifact·Evidence 등록 판단과 이유), <code>excluded_event_ids</code>(등록하지 않을 EVT ID)를 담는다. 두 목록이 해당 순번까지의 모든 EVT를 빠짐없이 한 번씩 포함하는지 검증한다. 기존 v1의 <code>events</code> 계획도 읽고 복구한다. 판단 파일은 재작성하지 않으며, 실제 적용 결과의 정본은 DB다.</p>
       <p class="note"><strong><code>progressed</code>:</strong> 이번 Run이 성공하면 Run은 <code>succeeded</code>, WI는 <code>ready</code>가 된다. 남은 작업의 <code>next_action</code>(다음 행동)을 적거나, AC가 모두 충족됐으면 <code>completion_recommended</code>(사용자 완료 권장)를 지정한다. WI의 <code>done</code>은 별도 요청이다.</p>
     </section>
 

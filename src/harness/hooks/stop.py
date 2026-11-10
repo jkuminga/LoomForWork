@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-from .. import runtime_binding, state_store
+from .. import runtime_binding, shared_paths, state_store
 
 
 class StopHookInputError(ValueError):
@@ -107,8 +107,7 @@ def main() -> int:
 
     result = dispatch_stop(
         payload,
-        database_path=os.environ.get("HARNESS_STATE_DATABASE")
-        or state_store.DEFAULT_DATABASE_PATH,
+        database_path=shared_paths.state_database_from_environment(),
         bindings_directory=os.environ.get("HARNESS_BINDINGS_DIRECTORY")
         or runtime_binding.DEFAULT_BINDINGS_DIRECTORY,
     )

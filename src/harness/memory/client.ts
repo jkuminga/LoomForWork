@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
+import { Database as BunDatabase } from "bun:sqlite";
 
 import { SQLiteBackend } from "../../../vendor/memory-graph/ts/src/backends/sqlite.ts";
 import {
@@ -17,7 +19,8 @@ import type {
   RecallSourceMemory,
 } from "./types.ts";
 
-export const MEMORY_DATABASE_RELATIVE_PATH = ".harness/memorygraph.db";
+export const MEMORY_DATABASE_RELATIVE_PATH = "harness-data/memorygraph.db";
+export const MEMORY_SCHEMA_VERSION = 1;
 
 /** Find the enclosing Git repository without invoking a shell command. */
 export function findProjectRoot(startDirectory = process.cwd()): string {
@@ -48,10 +51,25 @@ function toFinalizeMemory(memory: Awaited<ReturnType<SQLiteBackend["getMemory"]>
   };
 }
 
-/** Resolve the project-local MemoryGraph SQLite file. */
+/** Resolve the MemoryGraph SQLite file shared by this repository's worktrees. */
 export function resolveMemoryDatabasePath(projectRoot: string): string {
   const override = process.env.HARNESS_MEMORY_DB_PATH?.trim();
-  return override || join(projectRoot, MEMORY_DATABASE_RELATIVE_PATH);
+  if (override) return override;
+  const commonDirectory = execFileSync(
+    "git", ["-C", projectRoot, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+    { encoding: "utf8" },
+  ).trim();
+  if (!commonDirectory) throw new Error("git_common_directory_not_found");
+  const databasePath = join(commonDirectory, MEMORY_DATABASE_RELATIVE_PATH);
+  if (!existsSync(databasePath)) {
+    const worktrees = execFileSync("git", ["-C", projectRoot, "worktree", "list", "--porcelain"], { encoding: "utf8" });
+    for (const line of worktrees.split("\n")) {
+      if (line.startsWith("worktree ") && existsSync(join(line.slice(9), ".harness/memorygraph.db"))) {
+        throw new Error("shared memorygraph.db is missing; migrate the worktree database first");
+      }
+    }
+  }
+  return databasePath;
 }
 
 function toIsoString(value: string | Date): string {
@@ -74,11 +92,24 @@ async function withoutInfoLogs<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 async function openMemoryBackend(databasePath: string): Promise<SQLiteBackend> {
+  if (existsSync(databasePath)) {
+    const preflight = new BunDatabase(databasePath, { readonly: true, create: false });
+    try {
+      const version = preflight.query("PRAGMA user_version").get() as { user_version: number };
+      const schema = preflight.query("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").get();
+      if (schema && version.user_version !== MEMORY_SCHEMA_VERSION) {
+        throw new Error(`memorygraph.db schema version ${version.user_version} differs from supported version ${MEMORY_SCHEMA_VERSION}`);
+      }
+    } finally {
+      preflight.close();
+    }
+  }
   const backend = new SQLiteBackend(databasePath);
   try {
     await withoutInfoLogs(async () => {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec(`PRAGMA user_version = ${MEMORY_SCHEMA_VERSION}`);
     });
     return backend;
   } catch (error) {

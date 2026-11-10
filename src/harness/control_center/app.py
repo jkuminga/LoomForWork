@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .. import state_store
+from .. import shared_paths, state_store
 from .features_api import create_router as create_features_router
 from .overview_api import create_router as create_overview_router
 from .memory_graph_api import create_router as create_memory_graph_router
@@ -36,12 +36,12 @@ def _error_response(
 
 
 def create_app(
-    database_path: str | Path = state_store.DEFAULT_DATABASE_PATH,
+    database_path: str | Path | None = None,
     memory_database_path: str | Path | None = None,
 ) -> FastAPI:
     """Create a local control-center app bound to one state-store database."""
 
-    selected_database = Path(database_path)
+    selected_database = Path(database_path) if database_path is not None else shared_paths.state_database_from_environment()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:

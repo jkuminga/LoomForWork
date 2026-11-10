@@ -15,7 +15,7 @@ from typing import Any, Callable, Mapping
 
 from mcp.server import MCPServer
 
-from . import state_store
+from . import shared_paths, state_store
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -320,9 +320,7 @@ def create_server(
     return server
 
 
-mcp = create_server(
-    os.environ.get("HARNESS_STATE_DB", state_store.DEFAULT_DATABASE_PATH)
-)
+mcp = create_server(shared_paths.state_database_from_environment())
 
 
 def main() -> None:

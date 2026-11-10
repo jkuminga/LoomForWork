@@ -9,8 +9,8 @@ Harness v2는 로컬 프로젝트의 작업 목표, 한 번의 실행, 검증 �
 | Feature | 여러 작업을 묶는 큰 목표·기능 영역. WI에 연결하지 않아도 된다. |
 | WorkItem (WI) | 목표, 완료 조건(AC), 상태, 다음 행동을 가진 지속적인 작업 항목. 구현뿐 아니라 조사·결정·검증에도 사용한다. |
 | Run | 한 WI를 진전시키려는 한 번의 실행. 하나의 WI에 여러 Run을 연결할 수 있다. |
-| State DB | `.harness/state.db`의 SQLite 저장소. WI·Run·AC·도구 사용 기록·Artifact·Evidence·기억 후보 등 프로젝트 상태를 저장한다. |
-| MemoryGraph | `.harness/memorygraph.db`에 저장하는 장기 기억과 관계. 일회성 진행 로그가 아닌 재사용할 결정·문제·해결책을 다룬다. |
+| State DB | `<git-common-dir>/harness-data/state.db`의 SQLite 저장소. WI·Run·AC·도구 사용 기록·Artifact·Evidence·기억 후보 등 프로젝트 상태를 저장한다. |
+| MemoryGraph | `<git-common-dir>/harness-data/memorygraph.db`에 저장하는 장기 기억과 관계. 일회성 진행 로그가 아닌 재사용할 결정·문제·해결책을 다룬다. |
 | Control Center | `bin/harness-control-center`로 여는 로컬 웹 콘솔. WI·Run·기억 등 상태를 조회하고, Draft·메모·허용된 WI 관리를 제공한다. |
 | Hook·Skill·MCP | Hook은 요청 전후의 기계적 처리, Skill은 Codex의 작업 절차, MCP 도구는 상태·기억 접근을 담당한다. |
 

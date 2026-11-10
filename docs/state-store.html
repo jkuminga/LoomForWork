@@ -430,7 +430,7 @@
         <a href="#connection">DB 모듈과 연결 규칙</a>
         <a href="#principles">유지 원칙</a>
       </nav>
-      <p class="rail-note">구조의 기준은 <code>.harness/schema.sql</code>, 실제 상태의 기준은 로컬 <code>.harness/state.db</code>다.</p>
+      <p class="rail-note">구조의 기준은 <code>.harness/schema.sql</code>, 실제 상태의 기준은 <code>&lt;git-common-dir&gt;/harness-data/state.db</code>다.</p>
     </aside>
 
     <main id="main">
@@ -632,16 +632,17 @@
         <div class="storage-map">
           <article class="storage-col"><h3>상태 저장소에 저장</h3><ul><li>WI·Run의 현재 상태, 다음 행동과 블로커</li><li>Acceptance Criterion과 Evidence 연결</li><li>Run 의도·Recall 검색어·결과 요약·종료 이유</li><li>검토 전 EVT의 짧은 입력·결과 요약과 <code>reviewed_at</code></li><li>Artifact의 선택적 <code>uri</code>·원본 EVT 연결·검증 결과</li><li>장기 기억 후보와 WI 메모</li></ul></article>
           <div class="storage-divider">≠</div>
-          <article class="storage-col"><h3>다른 원본·임시 파일</h3><ul><li>긴 설계 설명 → 문서·ADR</li><li>코드와 diff → Git</li><li>Run별 EVT 판단 → <code>.harness/review-plans/</code> JSON</li><li>검토된 기억 본문·관계 → MemoryGraph</li><li>커밋·PR·CI 결과 → Git/CI</li><li>도구 출력 전문과 모델 호출 Trace를 저장하는 전용 계층은 현재 없음</li></ul></article>
+          <article class="storage-col"><h3>다른 원본·임시 파일</h3><ul><li>긴 설계 설명 → 문서·ADR</li><li>코드와 diff → Git</li><li>Run별 EVT 판단 → <code>&lt;git-common-dir&gt;/harness-data/review-plans/</code> JSON</li><li>검토된 기억 본문·관계 → MemoryGraph</li><li>커밋·PR·CI 결과 → Git/CI</li><li>도구 출력 전문과 모델 호출 Trace를 저장하는 전용 계층은 현재 없음</li></ul></article>
         </div>
-        <pre><code>.harness/
+        <pre><code>&lt;git-common-dir&gt;/harness-data/
   state.db               # 현재 상태와 State Event의 유일한 정본
-  schema.sql             # 테이블, 제약, 인덱스, View 정의
-  runtime/
-    bindings/            # 세션별 session·turn·WorkItem·Run 임시 연결
-  selections/            # w/ 선택기 요청·결과 임시 파일
-  review-plans/          # Run별 EVT 검토 판단 JSON</code></pre>
-        <p style="margin:15px 0 0;color:var(--muted);font-size:.84rem"><code>state.db</code>, <code>runtime/bindings/</code>, <code>selections/</code>, <code>review-plans/</code>는 로컬 작업 데이터다. Binding은 현재 Codex 세션이 어느 Run을 사용하는지 Hook에 알려 주는 임시 포인터이며 상태의 정본이 아니다. Review Plan은 검토 판단을 재시도할 수 있도록 보존하고, Run 종료와 EVT 마감이 확인된 뒤 삭제한다. <code>schema.sql</code>은 Git으로 추적한다.</p>
+  memorygraph.db         # 검토된 장기 기억
+  runtime/bindings/      # 세션별 session·turn·WorkItem·Run 임시 연결
+  review-plans/          # Run별 EVT 검토 판단 JSON
+&lt;worktree&gt;/.harness/
+  schema.sql             # Git이 추적하는 구조 정의
+  runtime/selections/    # w/ 선택기 요청·결과 임시 파일</code></pre>
+        <p style="margin:15px 0 0;color:var(--muted);font-size:.84rem"><code>state.db</code>, <code>memorygraph.db</code>, <code>runtime/bindings/</code>, <code>review-plans/</code>는 같은 Git 저장소의 worktree가 공유하는 로컬 데이터다. <code>runtime/selections/</code>는 각 worktree에 둔다. Binding은 현재 Codex 세션이 어느 Run을 사용하는지 Hook에 알려 주는 임시 포인터이며 상태의 정본이 아니다. Review Plan은 검토 판단을 재시도할 수 있도록 보존하고, Run 종료와 EVT 마감이 확인된 뒤 삭제한다. <code>schema.sql</code>은 Git으로 추적한다.</p>
       </section>
 
       <section id="connection">
@@ -657,16 +658,17 @@
 
 .harness/
   schema.sql            # 테이블·제약·인덱스·View 정의
-  state.db              # 실제 로컬 상태 데이터</code></pre>
+&lt;git-common-dir&gt;/harness-data/
+  state.db              # worktree가 공유하는 상태 데이터</code></pre>
         <div class="principles" style="margin-top:24px">
           <div class="principle"><b><code>state_store.py</code></b><p><code>open_database()</code>, WorkItem·Run·Artifact·Evidence·Memory Candidate의 생성과 조회, 상태 전이와 완료 검증 등 DB 관련 함수를 모두 담는 단일 내부 모듈이다.</p></div>
           <div class="principle"><b><code>mcp_server.py</code></b><p>Codex에 도구 이름과 입력 형식을 공개하고 대응하는 <code>state_store.py</code> 함수를 호출하는 얇은 연결부다. SQL과 상태 규칙을 중복 구현하지 않는다.</p></div>
-          <div class="principle"><b><code>runtime_binding.py</code></b><p><code>.harness/runtime/bindings/&lt;session-id&gt;.json</code>을 원자적으로 생성·조회·삭제하고 Run의 소유 세션을 찾는다. 세션 소유권을 WorkItem이나 Run 테이블에 중복 저장하지 않으며 Hook은 Binding과 DB의 실제 상태를 함께 확인한다.</p></div>
+          <div class="principle"><b><code>runtime_binding.py</code></b><p><code>&lt;git-common-dir&gt;/harness-data/runtime/bindings/&lt;session-id&gt;.json</code>을 원자적으로 생성·조회·삭제하고 Run의 소유 세션을 찾는다. 세션 소유권을 WorkItem이나 Run 테이블에 중복 저장하지 않으며 Hook은 Binding과 DB의 실제 상태를 함께 확인한다.</p></div>
           <div class="principle"><b><code>review_plans.py</code></b><p>EVT 검토 계획을 Run별 JSON으로 저장·검증한다. 이미 처리한 Artifact·Evidence와 대조해 누락분을 복구하고, 마감된 파일만 삭제한다.</p></div>
         </div>
         <p style="margin:18px 0 10px;color:var(--muted);font-size:.84rem"><strong>대표 DB 함수:</strong> <code>open_database()</code>, <code>create_work_item()</code>, <code>start_run()</code>, <code>record_run_tool_event()</code>, <code>create_artifact()</code>, <code>verify_criterion_with_evidence()</code>, <code>mark_tool_events_reviewed()</code>, <code>finish_run()</code>, <code>close_work_item()</code>, <code>create_candidate()</code>, <code>create_work_item_memo()</code>. 상태 변경과 검증 규칙은 각 함수가 검사한다.</p>
         <div class="flow" aria-label="공통 SQLite 연결 생성 흐름">
-          <div class="step"><b>01</b><strong>경로 결정</strong><p>저장소 루트의 <code>.harness/state.db</code>를 선택</p></div>
+          <div class="step"><b>01</b><strong>경로 결정</strong><p>Git 공통 디렉터리의 <code>harness-data/state.db</code>를 선택</p></div>
           <div class="step"><b>02</b><strong>연결 생성</strong><p>SQLite 데이터베이스 연결을 한 번 생성</p></div>
           <div class="step"><b>03</b><strong>외래키 활성화</strong><p><code>PRAGMA foreign_keys = ON</code> 실행</p></div>
           <div class="step"><b>04</b><strong>활성화 확인</strong><p><code>PRAGMA foreign_keys</code> 결과가 <code>1</code>인지 검사</p></div>
@@ -678,7 +680,7 @@
           <div class="principle"><b>실패 시 중단</b><p>외래키 활성화 결과가 <code>1</code>이 아니면 연결을 반환하지 않고 오류로 중단한다. 관계 검사가 꺼진 채로 상태를 기록하는 것을 허용하지 않는다.</p></div>
         </div>
         <pre><code>def open_database():
-    db = sqlite3.connect(PROJECT_ROOT / ".harness" / "state.db")
+    db = sqlite3.connect(DEFAULT_DATABASE_PATH)
     db.execute("PRAGMA foreign_keys = ON")
 
     enabled = db.execute("PRAGMA foreign_keys").fetchone()[0]

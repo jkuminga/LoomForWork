@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -23,6 +23,26 @@ afterEach(() => {
 });
 
 describe("MemoryGraph SQLite integration", () => {
+  test("rejects a database with an incompatible schema version", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "harness-memory-version-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "memorygraph.db");
+    const backend = new SQLiteBackend(databasePath);
+    const originalLog = console.log;
+    console.log = () => undefined;
+    try {
+      await backend.connect();
+      await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 2");
+    } finally {
+      await backend.disconnect();
+      console.log = originalLog;
+    }
+    const before = readFileSync(databasePath);
+    await expect(openMemorySearchClient(databasePath)).rejects.toThrow("schema version 2");
+    expect(readFileSync(databasePath)).toEqual(before);
+  });
+
   test("finalizes a node and relationship through the pinned SQLite backend", async () => {
     const directory = mkdtempSync(join(tmpdir(), "harness-memory-finalize-"));
     temporaryDirectories.push(directory);
@@ -33,6 +53,7 @@ describe("MemoryGraph SQLite integration", () => {
     try {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 1");
       await backend.storeMemory(createMemory({
         id: "problem-fk", type: "problem", title: "외래키 누락",
         content: "SQLite 외래키 검사가 비활성화되었다.",
@@ -73,6 +94,7 @@ describe("MemoryGraph SQLite integration", () => {
     try {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 1");
       await backend.storeMemory(
         createMemory({
           id: "sqlite-fk",
@@ -129,6 +151,7 @@ describe("MemoryGraph SQLite integration", () => {
     try {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 1");
       await backend.storeMemory(
         createMemory({
           id: "wrapper-decision",
@@ -186,6 +209,7 @@ describe("MemoryGraph SQLite integration", () => {
     try {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 1");
       await backend.storeMemory(
         createMemory({
           id: "existing-fk",
@@ -240,6 +264,7 @@ describe("MemoryGraph SQLite integration", () => {
     try {
       await backend.connect();
       await backend.initializeSchema();
+      backend.db!.exec("PRAGMA user_version = 1");
       await backend.storeMemory(
         createMemory({
           id: "inspect-cli-memory",
