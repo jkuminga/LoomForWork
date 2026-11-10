@@ -337,7 +337,7 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         self.assertEqual(selected, line)
         self.assertIn("--border-label= Harness · WorkItem 선택 ", command)
         self.assertIn("--with-nth=2", command)
-        self.assertIn("--nth=2,6,7", command)
+        self.assertIn("--nth=1", command)
         self.assertIn("--layout=reverse", command)
         self.assertIn("--header-first", command)
         self.assertIn("--header-border=bottom", command)
@@ -357,6 +357,39 @@ class UserPromptSubmitHookTests(unittest.TestCase):
         self.assertIn("{7}", preview)
         self.assertIn("{8}", preview)
         self.assertIn("--preview-window=down:50%,border-top,wrap", command)
+
+    def test_picker_starts_with_ready_only_and_binds_independent_status_filters(self) -> None:
+        ready = work_item_picker.format_fzf_line({
+            "id": "WI-ready", "title": "준비", "goal": "작업한다", "kind": "implementation",
+            "priority": "normal", "status": "ready", "is_draft": False,
+        })
+        backlog = work_item_picker.format_fzf_line({
+            "id": "WI-backlog", "title": "대기", "goal": "작업한다", "kind": "implementation",
+            "priority": "normal", "status": "backlog", "is_draft": False,
+        })
+        draft = work_item_picker.format_fzf_line({
+            "id": "WI-draft", "title": "초안", "goal": "구체화한다", "kind": "research",
+            "priority": "normal", "status": "backlog", "is_draft": True,
+        })
+        request_path = self.root / "selection.request.json"
+        completed = work_item_picker.subprocess.CompletedProcess(
+            args=["fzf"], returncode=130, stdout=""
+        )
+        with patch.object(work_item_picker.subprocess, "run", return_value=completed) as run:
+            work_item_picker.run_fzf([ready, backlog, draft], request_path=request_path)
+
+        command = run.call_args.args[0]
+        self.assertEqual(run.call_args.kwargs["input"], ready + "\n")
+        self.assertTrue(any(option.startswith("--bind=ctrl-r:transform(") for option in command))
+        self.assertTrue(any(option.startswith("--bind=ctrl-o:transform(") for option in command))
+        self.assertTrue(any(option.startswith("--bind=ctrl-t:transform(") for option in command))
+        self.assertIn(f"--prompt={work_item_picker.filter_prompt('100')}", command)
+        self.assertEqual(
+            work_item_picker.toggle_filter_action(
+                request_path, "backlog", work_item_picker.filter_prompt("100")
+            ).split("+", 1)[0],
+            f"change-prompt({work_item_picker.filter_prompt('110')})",
+        )
 
     def test_picker_marks_ready_from_the_fzf_start_event(self) -> None:
         ready_path = self.root / "picker ready.marker"

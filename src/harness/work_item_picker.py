@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -20,7 +21,10 @@ from typing import Any, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 FZF_HEADER = "상태    | 우선순위 | 종류          | 제목 / 목표"
-FZF_FOOTER = "Enter 선택 · Esc 취소 · 입력하여 검색 · ↑↓ 이동"
+FZF_FOOTER = "Ctrl+R Ready · Ctrl+O Backlog · Ctrl+T Draft\nEnter 선택 · Esc 취소 · 검색 입력 · ↑↓ 이동"
+FILTER_STATUSES = ("ready", "backlog", "draft")
+DEFAULT_FILTER_MASK = "100"
+FILTER_PROMPT_PATTERN = re.compile(r"^\[Ready ([✓✗]) · Backlog ([✓✗]) · Draft ([✓✗])\] 검색>$")
 FZF_PREVIEW = (
     "printf 'ID        %s\\n"
     "상태      %s\\n"
@@ -187,15 +191,66 @@ def read_and_validate_request(path: Path) -> dict[str, Any]:
     return request
 
 
-def run_fzf(lines: Sequence[str], *, ready_path: Path | None = None) -> str | None:
+def filter_prompt(mask: str) -> str:
+    """Show the three independent status switches in the search prompt."""
+
+    if len(mask) != len(FILTER_STATUSES) or any(bit not in "01" for bit in mask):
+        raise SelectionFileError("filter mask must contain three binary digits")
+    marks = ["✓" if bit == "1" else "✗" for bit in mask]
+    return f"[Ready {marks[0]} · Backlog {marks[1]} · Draft {marks[2]}] 검색> "
+
+
+def selected_filter_mask(prompt: str) -> str:
+    """Read the current switches exported by fzf to a transform command."""
+
+    match = FILTER_PROMPT_PATTERN.fullmatch(prompt.rstrip())
+    if match is None:
+        raise SelectionFileError("fzf filter prompt is invalid")
+    return "".join("1" if mark == "✓" else "0" for mark in match.groups())
+
+
+def filter_rows(request: Mapping[str, Any], mask: str) -> list[str]:
+    """Format only the enabled WI statuses from the original request snapshot."""
+
+    filter_prompt(mask)
+    visible = {status for status, enabled in zip(FILTER_STATUSES, mask) if enabled == "1"}
+    return [
+        format_fzf_line(item)
+        for item in request["work_items"]
+        if ("draft" if item.get("is_draft") else item.get("status", "ready")) in visible
+    ]
+
+
+def filter_command(request_path: Path, *arguments: str) -> str:
+    """Build one safely quoted local picker command for fzf actions."""
+
+    return " ".join(shlex.quote(part) for part in (
+        sys.executable, "-m", "src.harness.work_item_picker", "--request", str(request_path), *arguments,
+    ))
+
+
+def toggle_filter_action(request_path: Path, status: str, prompt: str) -> str:
+    """Return fzf actions that toggle one switch and reload the matching rows."""
+
+    if status not in FILTER_STATUSES:
+        raise SelectionFileError("unknown filter status")
+    mask = list(selected_filter_mask(prompt))
+    index = FILTER_STATUSES.index(status)
+    mask[index] = "0" if mask[index] == "1" else "1"
+    updated = "".join(mask)
+    return f"change-prompt({filter_prompt(updated)})+reload({filter_command(request_path, '--emit-rows', '--mask', updated)})"
+
+
+def run_fzf(lines: Sequence[str], *, ready_path: Path | None = None, request_path: Path | None = None) -> str | None:
     """Let the user select one tab-delimited WorkItem line with fzf."""
 
+    initial_lines = [line for line in lines if line.split("\t")[2] == "READY"] if request_path else list(lines)
     command = [
         "fzf",
         "--delimiter=\t",
         "--with-nth=2",
-        "--nth=2,6,7",
-        "--prompt=검색> ",
+        "--nth=1",
+        f"--prompt={filter_prompt(DEFAULT_FILTER_MASK) if request_path else '검색> '}",
         "--layout=reverse",
         "--border=rounded",
         "--border-label= Harness · WorkItem 선택 ",
@@ -215,10 +270,15 @@ def run_fzf(lines: Sequence[str], *, ready_path: Path | None = None) -> str | No
         command.append(
             f"--bind=start:execute-silent(: > {shlex.quote(str(ready_path))})"
         )
+    if request_path is not None:
+        for key, status in (("ctrl-r", "ready"), ("ctrl-o", "backlog"), ("ctrl-t", "draft")):
+            command.append(
+                f"--bind={key}:transform({filter_command(request_path, '--toggle', status)})"
+            )
     try:
         completed = subprocess.run(
             command,
-            input="\n".join(lines) + ("\n" if lines else ""),
+            input="\n".join(initial_lines) + ("\n" if initial_lines else ""),
             text=True,
             stdout=subprocess.PIPE,
             check=False,
@@ -288,7 +348,7 @@ def run_picker(request_path: Path) -> None:
 
     request = read_and_validate_request(request_path)
     lines = [format_fzf_line(item) for item in request["work_items"]]
-    selected_line = run_fzf(lines, ready_path=terminal_ready_path_for(request_path))
+    selected_line = run_fzf(lines, ready_path=terminal_ready_path_for(request_path), request_path=request_path)
     if utc_now() >= parse_timestamp(request["expires_at"], "expires_at"):
         return
     if selected_line is None:
@@ -305,10 +365,27 @@ def main() -> int:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--request", required=True, type=Path)
+    parser.add_argument("--emit-rows", action="store_true")
+    parser.add_argument("--mask")
+    parser.add_argument("--toggle", choices=FILTER_STATUSES)
     arguments = parser.parse_args()
     try:
-        run_picker(arguments.request.resolve(strict=True))
-    except SelectionFileError as error:
+        request_path = arguments.request.resolve(strict=True)
+        if arguments.emit_rows:
+            if arguments.mask is None or arguments.toggle is not None:
+                raise SelectionFileError("emit-rows requires a mask and no toggle")
+            rows = filter_rows(read_and_validate_request(request_path), arguments.mask)
+            if rows:
+                sys.stdout.write("\n".join(rows) + "\n")
+        elif arguments.toggle is not None:
+            if arguments.mask is not None:
+                raise SelectionFileError("toggle does not accept a mask")
+            print(toggle_filter_action(request_path, arguments.toggle, os.environ.get("FZF_PROMPT", "")))
+        elif arguments.mask is not None:
+            raise SelectionFileError("mask requires emit-rows")
+        else:
+            run_picker(request_path)
+    except (OSError, SelectionFileError) as error:
         print(f"harness-work-picker: {error}", file=sys.stderr)
         return 2
     return 0
