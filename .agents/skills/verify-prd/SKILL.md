@@ -12,7 +12,7 @@ Improve the PRD's accuracy, clarity, and traceability without silently adding
 capabilities or treating missing optional details as decided requirements.
 
 Use the PRD path supplied by the user or `mvp-to-prd` (for example,
-`docs/prd/example2.prd.md` for `example2.mvp.md`). If no path is supplied,
+`docs/prd/sample.prd.md` for `sample.mvp.md`). If no path is supplied,
 use the sole clearly matching PRD in the repository; ask for a path when
 several qualify.
 Require the user to specify the source MVP document. If the user has not

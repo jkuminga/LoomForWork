@@ -33,13 +33,73 @@ metadata:
 - `kind`(작업 종류): 제품 기능 구현은 `implementation`이 기본이다. F 자체의 결과물이 조사·결정·검증이면 각각 `research`·`decision`·`verification`을 쓴다. 연동이 어렵거나 불확실하다는 이유만으로 구현 F를 `research`로 바꾸지 않는다. PRD가 명시한 경우에만 나머지 허용 종류(`bug`, `refactor`, `migration`, `maintenance`)를 쓴다.
 - `priority`(작업 우선순위): MoSCoW는 출시 범위이고 이 값은 작업 순서다. 기본값은 `normal`; 다른 필수 작업의 선행 조건이거나 핵심 흐름을 막는 작업은 `high`; 범위 안에서 뒤로 미룰 수 있는 작업은 `low`; 명시적인 긴급 요청만 `urgent`로 둔다. F 사이의 강제 순위를 만들지 않고, 모든 Must를 일괄 `high`로 바꾸지 않는다. 새 Feature의 우선순위는 하위 WI의 가장 높은 우선순위를 기본으로 하되 PRD의 명시적 결정과 충돌하면 확인한다.
 - AC: vendor가 추출한 내용을 보존한다. 한 문장에 독립적인 결과가 여럿 묶였으면 PRD 근거를 보며 분리한다. 한 개로 충분하면 유지한다. AC 개수를 맞추기 위한 조건이나 확인되지 않은 기능을 추가하지 않는다. 각 WI에는 비어 있지 않은 AC가 하나 이상 있어야 한다.
-- `notes`에는 구현 제약·엣지 케이스·검토 기록의 미해결 사항을 간결하게 쓴다. `origin`에는 vendor F 번호, MoSCoW, 난이도, FR/NFR 출처를 그대로 남긴다. 등록 단계는 이를 WI의 `description`(추가 설명)으로 옮긴다.
+- `notes`에는 구현 제약·엣지 케이스·검토 기록의 미해결 사항을 간결하게 쓴다. `vendor_id`에는 vendor F 번호, `origin`에는 MoSCoW·난이도·FR/NFR 출처를 남긴다. 등록 단계는 이를 WI의 `description`(추가 설명)으로 옮긴다.
 
 ## 5. JSON 저장과 보고
 
-`docs/feature-planning-and-console-design.md`의 `schema_version 2` 계약을 따른다. 후보 파일은 `docs/feature-candidates/<prd-base>.features.json`에 저장한다. PRD 파일명이 `.prd.md`이면 그 접미사를 제거해 `<prd-base>`를 만든다. 다른 `.md` 파일은 마지막 `.md`만 제거한다. 예: `docs/prd/example2.prd.md` → `docs/feature-candidates/example2.features.json`.
+후보 파일을 `docs/feature-candidates/<prd-base>.features.json`에 저장한다. PRD 파일명이 `.prd.md`이면 그 접미사를 제거해 `<prd-base>`를 만든다. 다른 `.md` 파일은 마지막 `.md`만 제거한다. 예: `docs/prd/sample.prd.md` → `docs/feature-candidates/sample.features.json`.
 
-최상위에는 `schema_version`, `source_prd`, 선택적 `review`, `features`만 둔다. 각 Feature 후보는 임시 `key`(`G-001` 등), `target`, 비어 있지 않은 `work_items`를 가진다. `target.mode="create"`는 `title`·`goal`·`priority`, `target.mode="reuse"`는 확인된 `feature_id`만 가진다. 각 WI 후보는 `vendor_id`, `title`, `goal`, `kind`, `priority`, 비어 있지 않은 `acceptance_criteria`, 선택적 `notes`, `origin`(`moscow`, `complexity`, `requirements`)을 가진다. 하위 WI에 부모 ID를 반복하지 않는다. 임시 번호는 DB ID가 아니다. `excluded`, 승인 상태, 등록 결과, 생성된 DB ID를 JSON에 넣지 않는다. 후보 파일을 자동 커밋하지 않는다.
+### 후보 JSON 계약 (`schema_version: 2`)
+
+```json
+{
+  "schema_version": 2,
+  "source_prd": "docs/prd/sample.prd.md",
+  "review": "docs/prd/sample.prd.review.md",
+  "features": [
+    {
+      "key": "G-001",
+      "target": {
+        "mode": "create",
+        "title": "Google Docs 원본 연결·선택",
+        "goal": "기존 문서를 찾아 분석에 활용할 수 있다.",
+        "priority": "high"
+      },
+      "work_items": [
+        {
+          "vendor_id": "F6",
+          "title": "문서 검색·선택·내용 읽기",
+          "goal": "선택한 문서 내용을 분석에 사용한다.",
+          "kind": "implementation",
+          "priority": "normal",
+          "acceptance_criteria": ["문서를 검색해 선택할 수 있다."],
+          "notes": "읽기 권한이 없는 문서 처리 방법을 확인한다.",
+          "origin": {
+            "moscow": "Must",
+            "complexity": "High",
+            "requirements": ["FR-2", "FR-3"]
+          }
+        }
+      ]
+    },
+    {
+      "key": "G-002",
+      "target": { "mode": "reuse", "feature_id": "FEAT-abc123" },
+      "work_items": [
+        {
+          "vendor_id": "F8",
+          "title": "기존 기능의 다음 흐름",
+          "goal": "기존 Feature의 목표를 진전시킨다.",
+          "kind": "implementation",
+          "priority": "normal",
+          "acceptance_criteria": ["다음 흐름을 확인할 수 있다."],
+          "origin": {
+            "moscow": "Should",
+            "complexity": "Medium",
+            "requirements": ["FR-4"]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+- 최상위 필드는 `schema_version`, `source_prd`(원본 PRD 경로), 선택적 `review`(검토 문서 경로), 비어 있지 않은 `features`뿐이다. `review`는 검토 문서가 있을 때만 넣는다.
+- Feature 후보는 임시 `key`, `target`, 비어 있지 않은 `work_items`만 가진다. `target.mode="create"`는 `title`·`goal`·`priority`를, `target.mode="reuse"`는 `list_features()`로 확인한 기존 `feature_id`만 가진다. 기존 Feature의 목표·범위가 실질적으로 같을 때만 재사용한다. 등록 때도 ID 존재 여부를 확인한다.
+- WI 후보는 `vendor_id`, `title`, `goal`, `kind`, `priority`, 비어 있지 않은 `acceptance_criteria`(완료 조건), `origin` 및 선택적 `notes`만 가진다. `origin`에는 `moscow`, `complexity`, 비어 있지 않은 `requirements`(PRD의 `FR-숫자`·`NFR-숫자` ID)를 넣는다. `kind`·`priority` 값은 4단계 규칙을 따른다.
+- `key`·`vendor_id`는 후보 식별자이며 DB의 `FEAT-…`·`WI-…` ID가 아니다. WI의 부모는 소속 Feature 배열로 나타내므로 하위 WI에 `feature_id`를 반복하지 않는다. 등록 인터페이스는 `origin`과 `notes`를 WI의 `description`으로 조합하고 AC를 별도로 저장한다.
+- Won't 항목은 사용자 응답에 제외 이유와 함께 보고한다. JSON에는 `excluded`, 승인 상태, 등록 결과, 생성된 DB ID를 넣지 않는다. 후보 파일을 자동 커밋하거나 등록 결과로 다시 쓰지 않는다.
 
 저장 후 JSON을 파싱하고 다음을 확인한다: Feature `key`와 WI `vendor_id`의 유일성, `create`·`reuse` 대상 필드, 허용된 `kind`·`priority`, 모든 포함 F의 정확히 한 번 배치, PRD 요구사항 ID의 실제 존재, AC의 근거와 빈 값 여부, Won't 항목의 JSON 제외. 기존 파일을 다시 만들 때는 사용자가 수정한 후보를 덮어쓰지 않도록 먼저 내용을 비교한다.
 

@@ -77,8 +77,8 @@ missing details in **Open Questions/Assumptions** rather than filling them in:
 
 Save the PRD at `docs/prd/<base>.prd.md` unless the user specifies another
 destination. For an MVP filename ending in `.mvp.md`, remove that entire
-suffix to get `<base>`: `example2.mvp.md` becomes
-`docs/prd/example2.prd.md`. For other Markdown filenames, remove only the
+suffix to get `<base>`: `sample.mvp.md` becomes
+`docs/prd/sample.prd.md`. For other Markdown filenames, remove only the
 final `.md`. This path identifies the source without overwriting the MVP. If
 a PRD already exists at that path, revise it while preserving stable
 requirement IDs and reviewing the diff.

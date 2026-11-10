@@ -18,8 +18,8 @@ Artifact는 Run의 검증 가능한 작업 결과 기록이고, Evidence는 그 
 
 ## 요청부터 종료까지
 
-1. 일반 요청은 WI 선택기를 열지 않는다. `w/` 요청에서는 UserPromptSubmit Hook(UPS)이 현재 세션의 이전 실행을 정리하고, 사용자가 fzf 선택기에서 `ready` WI 또는 `backlog` Draft WI를 고르게 한다.
-2. `$work-start`는 선택한 Draft를 실행 가능한 WI로 구체화하고, 같은 WI의 과거 미검토 도구 기록이 있으면 새 Run 전에 복구한다. `start_work()`가 Run을 시작하면 세션 Binding을 만들고 관련 기억을 회상한다.
+1. 일반 요청은 WI 선택기를 열지 않는다. `w/` 요청에서는 UserPromptSubmit Hook(UPS)이 현재 세션의 이전 실행을 정리하고 fzf 선택기를 연다. 기본 목록은 `ready` WI이며, `Ctrl+R`·`Ctrl+O`·`Ctrl+T`로 각각 ready·일반 backlog·Draft 표시를 켜고 끌 수 있다.
+2. `$work-start`는 선택한 Draft를 실행 가능한 WI로 구체화한다. 일반 backlog(`status=backlog`, `is_draft=0`)를 골랐다면 이번 요청과 목표·AC(완료 조건)를 대조해 필요한 부분만 보강하고, 맞는 `next_action`(다음 행동)을 정해 `ready`로 바꾼다. 같은 WI의 과거 미검토 도구 기록이 있으면 새 Run 전에 복구한다. `start_work()`가 Run을 시작하면 세션 Binding을 만들고 관련 기억을 회상한다.
 3. 활성 Run에서 일반 도구를 사용하면 PostToolUse Hook이 `run_tool_events`(도구 실행별 압축 기록)에 저장한다. 개별 도구 사용 직후 Artifact 등록 여부를 판단하지 않는다. 재사용할 지식은 작업 중 `create_memory_candidate()`로 후보를 남긴다.
 4. `$work-finish`는 Postflight(종료 전 상태 조회)와 도구 기록·작업 맥락을 검토한다. Run별 Review Plan JSON에 Artifact·Evidence 등록 판단을 고정하고 적용한다. 기억 후보는 `$memory-finalize`로 검토하되, pending 후보만으로 Run 종료를 막지는 않는다.
 5. 도구 기록의 `reviewed_at`(검토 마감 시각)을 채우고 입력·결과 요약을 제거한 뒤 `finish_work()`로 Run을 종료한다. 성공한 Run은 `succeeded`, WI는 다시 `ready`가 될 수 있다. WI의 `done`은 사용자가 웹 콘솔 또는 명시적 완료 요청으로 별도 처리한다.
