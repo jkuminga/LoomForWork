@@ -11,9 +11,9 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=next-actions-highlight-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=overview-dashboard-3" />
     <link rel="stylesheet" href="/static/features.css?v=feature-status-pills-5" />
-    <script src="/static/app.js?v=feature-header-2" defer></script>
+    <script src="/static/app.js?v=overview-dashboard-6" defer></script>
     <script src="/static/features.js?v=feature-status-pills-5" defer></script>
     <script src="/static/memory-graph.js?v=1" defer></script>
     <link rel="stylesheet" href="/static/memory-graph.css?v=1" />
@@ -30,9 +30,9 @@
         </button>
 
         <nav class="nav-list">
-          <a id="nav-overview" href="#overview" aria-label="Overview" title="Overview"><span>◫</span>Overview</a>
+          <a class="active" id="nav-overview" href="#overview" aria-label="Overview" title="Overview" aria-current="page"><span>◫</span>Overview</a>
           <a id="nav-features" href="#features" aria-label="Features" title="Features"><span>◇</span>Features</a>
-          <a class="active" id="nav-work-items" href="#work-items" aria-label="Work Items" title="Work Items" aria-current="page"><span>≡</span>Work Items</a>
+          <a id="nav-work-items" href="#work-items" aria-label="Work Items" title="Work Items"><span>≡</span>Work Items</a>
           <a id="nav-runs" href="#runs" aria-label="Runs" title="Runs"><span>▷</span>Runs</a>
           <a id="nav-memory-graph" href="#memory-graph" aria-label="MemoryGraph" title="MemoryGraph"><span>⌘</span>MemoryGraph</a>
           <a id="nav-activity-timeline" href="#activity-timeline" aria-label="Activity Timeline" title="Activity Timeline"><span>◷</span>Activity Timeline</a>
@@ -62,13 +62,13 @@
 
       <div class="main-shell">
         <header class="top-bar">
-          <div class="crumbs"><span>main</span><b>/</b><strong id="page-crumb">Work Items</strong></div>
+          <div class="crumbs"><span>main</span><b>/</b><strong id="page-crumb">Overview</strong></div>
           <div class="page-heading">
             <div>
               <p class="eyebrow">PROJECT CONTROL</p>
               <div class="title-line">
-                <h1 id="page-title">Work Items</h1>
-                <span class="visible-count" id="visible-count">0 visible</span>
+                <h1 id="page-title">Overview</h1>
+                <span class="visible-count" id="visible-count">0 nodes</span>
               </div>
             </div>
             <div class="page-heading-actions">
@@ -103,42 +103,14 @@
         <div class="feature-scrim hidden" id="feature-scrim"></div>
         <aside class="feature-detail" id="feature-detail" role="dialog" aria-modal="true" aria-label="Feature 상세 정보" aria-hidden="true" inert></aside>
 
-        <main class="overview-workspace hidden" id="overview-view">
-          <section class="overview-toolbar" aria-label="Overview 그래프 도구">
-            <div class="overview-toolbar-copy">
-              <span class="eyebrow">GRAPH NETWORK</span>
-              <p>진행 가능한 WorkItem과 Run의 연결 관계를 탐색하세요. 완료된 작업은 Work Items 상세 페이지에서 확인할 수 있습니다.</p>
-            </div>
-            <button class="primary-button overview-refresh" id="refresh-overview" type="button">↻ 새로고침</button>
+        <main class="overview-workspace" id="overview-view">
+          <section class="dashboard-heading">
+            <div><h2>프로젝트 현황</h2><p>Feature, Work Item, Run의 규모와 최근 완료 흐름을 확인합니다.</p></div>
+            <button class="secondary-button" id="refresh-overview" type="button">↻ 새로고침</button>
           </section>
-          <section class="overview-controls" aria-label="Overview 그래프 필터">
-            <label class="overview-search">
-              <span>Search</span>
-              <input id="overview-query" type="search" maxlength="200" placeholder="ID, 제목, Intent 검색" autocomplete="off" />
-            </label>
-            <div class="overview-scope" role="group" aria-label="노드 종류">
-              <button type="button" data-overview-scope="all" class="active">All <b id="overview-all-count">0</b></button>
-              <button type="button" data-overview-scope="feature">Features <b id="overview-feature-count">0</b></button>
-              <button type="button" data-overview-scope="work_item">WorkItems <b id="overview-work-item-count">0</b></button>
-              <button type="button" data-overview-scope="run">Runs <b id="overview-run-count">0</b></button>
-            </div>
-            <label class="overview-status-filter"><span>Status</span><select id="overview-status"><option value="">All Status</option><option value="planned">Planned</option><option value="active">Active</option><option value="backlog">Backlog</option><option value="ready">Ready</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="done">Done</option><option value="running">Running</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="cancelled">Cancelled</option></select></label>
-            <div class="overview-control-actions">
-              <button class="secondary-button" id="overview-fit" type="button">⌗ Fit to Screen</button>
-              <button class="secondary-button" id="overview-reset" type="button">↻ 초기화</button>
-              <button class="secondary-button" id="overview-spread" type="button" aria-pressed="false">☷ Force Settings</button>
-            </div>
-          </section>
-          <section class="overview-graph-panel" aria-label="Feature WorkItem Run 그래프">
-            <div class="loading-state hidden" id="overview-loading"><span class="spinner"></span><p>Overview를 불러오는 중입니다.</p></div>
-            <svg id="overview-graph" viewBox="0 0 1400 760" role="img" aria-label="Feature, WorkItem, Run 관계 그래프">
-              <g id="overview-graph-scene"></g>
-            </svg>
-            <aside class="overview-selection hidden" id="overview-selection" aria-live="polite"></aside>
-            <div class="overview-legend" aria-label="그래프 범례"><span><i class="overview-legend-feature"></i>Feature</span><span><i class="overview-legend-work-item"></i>WorkItem</span><span><i class="overview-legend-run"></i>Run</span></div>
-            <div class="overview-zoom-controls" aria-label="그래프 확대 축소"><button id="overview-zoom-in" type="button" aria-label="확대">＋</button><button id="overview-zoom-out" type="button" aria-label="축소">−</button><button id="overview-zoom-reset" type="button" aria-label="확대 축소 초기화">⌗</button></div>
-          </section>
-          <div class="overview-engine-status"><span class="pulse-dot"></span><strong>Network Graph</strong><span id="overview-engine-summary">관계를 불러오는 중</span><span class="overview-engine-hint">빈 공간을 드래그하고 휠로 확대·축소하세요.</span></div>
+          <div class="loading-state hidden dashboard-loading" id="overview-loading"><span class="spinner"></span><p>Overview를 불러오는 중입니다.</p></div>
+          <p class="dashboard-error hidden" id="overview-error" role="alert"></p>
+          <div id="overview-dashboard" aria-live="polite"></div>
         </main>
 
         <main class="overview-workspace hidden" id="memory-graph-view">
@@ -163,7 +135,7 @@
           <div class="overview-engine-status"><strong>Memory Network</strong><span id="memory-count" aria-live="polite"></span><span class="overview-engine-hint">드래그로 이동 · 휠로 확대/축소 · 읽기 전용</span></div>
         </main>
 
-        <main class="workspace" id="work-items-view">
+        <main class="workspace hidden" id="work-items-view">
           <aside class="filters" aria-label="WorkItem 필터">
             <div class="panel-heading">
               <span class="eyebrow">FILTERS</span>

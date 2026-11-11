@@ -259,83 +259,27 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["work_item_count"], 1)
         self.assertEqual(payload["summary"]["run_count"], 1)
 
-    def test_overview_ui_uses_compact_feature_and_work_item_titles(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
-        app_js = (root / "app.js").read_text()
-        styles = (root / "styles.css").read_text()
-        index = (root / "index.html").read_text()
+        dashboard = self.client.get("/api/overview/dashboard")
+        self.assertEqual(dashboard.status_code, 200)
+        summary = dashboard.json()
+        self.assertEqual(summary["features"]["total"], 1)
+        self.assertEqual(summary["work_items"]["status"], {"in_progress": 1, "done": 1})
+        self.assertEqual(summary["runs"]["status"], {"running": 1, "succeeded": 1})
+        self.assertEqual(summary["work_item_priorities"], {"normal": 1})
+        self.assertEqual(summary["work_items"]["this_week_done"], 1)
+        self.assertEqual(summary["runs"]["this_week_succeeded"], 1)
+        self.assertEqual(summary["work_items_completed_by_week"][-1]["count"], 1)
+        self.assertEqual(summary["runs_succeeded_by_week"][-1]["count"], 1)
+        self.assertEqual(summary["work_items_completed_by_day"][-1]["count"], 1)
+        self.assertEqual(summary["runs_succeeded_by_day"][-1]["count"], 1)
+        self.assertEqual(summary["feature_progress"][0]["progress_percent"], 50)
 
-        self.assertIn('id="overview-view"', index)
-        self.assertIn('id="overview-graph"', index)
-        self.assertIn('id="nav-overview"', index)
-        self.assertIn("완료된 작업은 Work Items 상세 페이지", index)
-        self.assertIn("function overviewShortTitle(value, maximum = 10)", app_js)
-        self.assertIn("function overviewFeatureTitleLines(value)", app_js)
-        self.assertIn("overviewShortTitle(node.title, 10)", app_js)
-        self.assertIn("<title>${escapeHtml(node.title)}</title>", app_js)
-        self.assertIn('<circle r="8"></circle>', app_js)
-        self.assertNotIn('class="overview-run-id"', app_js)
-        self.assertNotIn('class="overview-run-mark"', app_js)
-        self.assertIn("overview-edge-status-", app_js)
-        self.assertIn('<rect x="-66" y="-39" width="132" height="78" rx="13"></rect>', app_js)
-        self.assertIn(".overview-node-feature .overview-node-title", styles)
-        self.assertIn(".overview-node-work-item .overview-node-title", styles)
-
-    def test_overview_layout_keeps_work_item_run_clusters_apart(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
-        script = """
-const fs = require("fs");
-const vm = require("vm");
-const source = fs.readFileSync(process.argv[1], "utf8");
-const layoutSource = source.slice(
-  source.indexOf("function overviewRunRingRadius"),
-  source.indexOf("function overviewFeatureNodeHtml"),
-);
-const context = { state: { overviewSpread: false } };
-vm.createContext(context);
-vm.runInContext(layoutSource, context);
-const counts = [19, 1, 5, 1];
-const workItems = counts.map((count, index) => ({
-  id: `WI-${index}`, type: "work_item", feature_id: null, childCount: count,
-}));
-const runs = counts.flatMap((count, workItemIndex) => Array.from({ length: count }, (_, runIndex) => ({
-  id: `RUN-${workItemIndex}-${runIndex}`, type: "run", work_item_id: `WI-${workItemIndex}`,
-})));
-const layout = context.overviewLayout([...workItems, ...runs]);
-const overlaps = [];
-for (let left = 0; left < workItems.length; left += 1) {
-  for (let right = left + 1; right < workItems.length; right += 1) {
-    const leftPosition = layout.positions.get(workItems[left].id);
-    const rightPosition = layout.positions.get(workItems[right].id);
-    const minimum = context.overviewWorkItemClusterRadius(counts[left], 1)
-      + context.overviewWorkItemClusterRadius(counts[right], 1);
-    if (Math.hypot(leftPosition.x - rightPosition.x, leftPosition.y - rightPosition.y) < minimum) {
-      overlaps.push([workItems[left].id, workItems[right].id]);
-    }
-  }
-}
-const firstWorkItem = layout.positions.get(workItems[0].id);
-const firstRunDistances = runs.filter((run) => run.work_item_id === workItems[0].id).map((run) => {
-  const position = layout.positions.get(run.id);
-  return Math.hypot(position.x - firstWorkItem.x, position.y - firstWorkItem.y);
-});
-process.stdout.write(JSON.stringify({
-  overlaps,
-  ringSpread: Math.max(...firstRunDistances) - Math.min(...firstRunDistances),
-  width: layout.width,
-  height: layout.height,
-}));
-"""
-        result = subprocess.run(
-            ["node", "-e", script, str(app_js)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        layout_result = json.loads(result.stdout)
-        self.assertEqual(layout_result["overlaps"], [])
-        self.assertLess(layout_result["ringSpread"], 0.001)
+    def test_overview_page_uses_dashboard(self) -> None:
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="overview-dashboard"', response.text)
+        self.assertIn('class="active" id="nav-overview"', response.text)
+        self.assertNotIn('id="overview-graph"', response.text)
 
     def test_memo_markdown_renderer_preserves_nested_list_depth(self) -> None:
         app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"

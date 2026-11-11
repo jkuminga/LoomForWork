@@ -55,7 +55,7 @@ const state = {
   memoDraftTimer: null,
   memoLastFocus: null,
   detailTab: "overview",
-  currentView: "work-items",
+  currentView: "overview",
   runs: [],
   runsTotal: 0,
   runsLimit: 50,
@@ -68,15 +68,6 @@ const state = {
   expandedRunId: null,
   runDetails: new Map(),
   overview: null,
-  overviewQuery: "",
-  overviewScope: "all",
-  overviewStatus: "",
-  overviewSelectedId: null,
-  overviewScale: 1,
-  overviewOffset: { x: 0, y: 0 },
-  overviewSpread: false,
-  overviewDragging: null,
-  overviewCanvas: { width: 1400, height: 760 },
   sidebarCollapsed: false,
   fontScale: 100,
   nextActionsOpen: false,
@@ -111,11 +102,9 @@ const elements = {
   featuresView: document.querySelector("#features-view"),
   runsView: document.querySelector("#runs-view"),
   overviewView: document.querySelector("#overview-view"),
-  overviewGraph: document.querySelector("#overview-graph"),
-  overviewScene: document.querySelector("#overview-graph-scene"),
-  overviewSelection: document.querySelector("#overview-selection"),
   overviewLoading: document.querySelector("#overview-loading"),
-  overviewEngineSummary: document.querySelector("#overview-engine-summary"),
+  overviewDashboard: document.querySelector("#overview-dashboard"),
+  overviewError: document.querySelector("#overview-error"),
   runsBody: document.querySelector("#runs-table-body"),
   runsLoading: document.querySelector("#runs-loading"),
   runsEmpty: document.querySelector("#runs-empty"),
@@ -1178,323 +1167,156 @@ async function loadItems({ selectId = null } = {}) {
   }
 }
 
-function overviewShortTitle(value, maximum = 10) {
-  const characters = Array.from(String(value || "제목 없음").trim());
-  if (characters.length <= maximum) return characters.join("");
-  return `${characters.slice(0, maximum - 1).join("")}…`;
+function dashboardCount(statuses, key) {
+  return Number(statuses?.[key] || 0).toLocaleString("ko-KR");
 }
 
-function overviewFeatureTitleLines(value) {
-  const characters = Array.from(overviewShortTitle(value, 10));
-  return [characters.slice(0, 5).join(""), characters.slice(5, 10).join("")].filter(Boolean);
+function dashboardMetric(label, value, tone = "") {
+  return `<div class="dashboard-metric"><b class="${tone}">${escapeHtml(String(value))}</b><span>${escapeHtml(label)}</span></div>`;
 }
 
-function overviewNodeStatusClass(status) {
-  const normalized = String(status || "unknown").replace(/[^a-z0-9_-]/gi, "-");
-  return `overview-node-status-${normalized}`;
+function dashboardSummaryCard({ title, description, total, metrics, footer = "" }) {
+  return `<article class="dashboard-summary-card">
+    <div class="dashboard-card-heading"><h3>${escapeHtml(title)}</h3><span>${escapeHtml(description)}</span></div>
+    <div class="dashboard-total">${Number(total || 0).toLocaleString("ko-KR")}<small>전체</small></div>
+    <div class="dashboard-metrics">${metrics.join("")}</div>
+    ${footer ? `<p class="dashboard-card-footnote">${footer}</p>` : ""}
+  </article>`;
 }
 
-function overviewNodes(payload = state.overview) {
-  if (!payload) return [];
-  const workItemCounts = new Map();
-  const runCounts = new Map();
-  for (const item of payload.work_items) {
-    if (item.feature_id) workItemCounts.set(item.feature_id, (workItemCounts.get(item.feature_id) || 0) + 1);
-  }
-  for (const run of payload.runs) {
-    if (run.work_item_id) runCounts.set(run.work_item_id, (runCounts.get(run.work_item_id) || 0) + 1);
-  }
-  return [
-    ...payload.features.map((feature) => ({ ...feature, type: "feature", childCount: workItemCounts.get(feature.id) || 0 })),
-    ...payload.work_items.map((item) => ({ ...item, type: "work_item", childCount: runCounts.get(item.id) || 0 })),
-    ...payload.runs.map((run) => ({ ...run, type: "run", title: run.intent || run.id, childCount: 0 })),
+function dashboardWeekLabel(weekStart) {
+  const thursday = new Date(`${weekStart}T00:00:00Z`);
+  thursday.setUTCDate(thursday.getUTCDate() + 3);
+  return `${thursday.getUTCMonth() + 1}월 ${Math.ceil(thursday.getUTCDate() / 7)}주`;
+}
+
+function dashboardCompletionChart(workItems, runs, daily = false) {
+  const items = workItems || [];
+  const runValues = runs || [];
+  const values = items.length ? items : runValues;
+  const key = daily ? "day" : "week";
+  const title = daily ? "지난 7일간 WI·Run 완료" : "주차별 WI·Run 완료";
+  const max = Math.max(1, ...items.map((row) => Number(row.count || 0)), ...runValues.map((row) => Number(row.count || 0)));
+  const width = 520;
+  const top = 18;
+  const bottom = 158;
+  const left = 44;
+  const right = 505;
+  const xAt = (index) => values.length < 2 ? (left + right) / 2 : left + (right - left) * index / (values.length - 1);
+  const yAt = (value) => bottom - (bottom - top) * Number(value || 0) / max;
+  const points = (rows) => rows.map((row, index) => `${xAt(index)},${yAt(row.count)}`).join(" ");
+  const grid = [0, .5, 1].map((fraction) => {
+    const y = bottom - (bottom - top) * fraction;
+    const label = Math.round(max * fraction);
+    return `<line class="dashboard-gridline" x1="${left}" y1="${y}" x2="${right}" y2="${y}"/><text class="dashboard-axis-label" x="${left - 10}" y="${y + 4}" text-anchor="end">${label}</text>`;
+  }).join("");
+  const dots = (rows, otherRows, color, label) => rows.map((row, index) => {
+    const date = new Date(`${row[key]}T00:00:00Z`);
+    const dateLabel = date.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", timeZone: "UTC" });
+    const caption = `${daily ? dateLabel : dashboardWeekLabel(row.week)} : ${Number(row.count || 0).toLocaleString("ko-KR")}개`;
+    const overlap = otherRows[index] && Number(otherRows[index].count || 0) === Number(row.count || 0);
+    const x = xAt(index) + (overlap ? color === "is-runs" ? 5 : -5 : 0);
+    const y = yAt(row.count);
+    const cardX = Math.max(left, Math.min(right - 124, x - 62));
+    const cardY = y < top + 38 ? y + 11 : y - 37;
+    return `<g class="dashboard-chart-node"><circle cx="${x}" cy="${y}" r="10" fill="transparent" aria-hidden="true"/><circle class="dashboard-chart-point ${color}" cx="${x}" cy="${y}" r="5" tabindex="0" role="img" aria-label="${label} ${escapeHtml(caption)}"/><g class="dashboard-node-card" aria-hidden="true"><rect x="${cardX}" y="${cardY}" width="124" height="28" rx="6"/><circle class="dashboard-node-card-dot ${color}" cx="${cardX + 12}" cy="${cardY + 14}" r="3"/><text x="${cardX + 22}" y="${cardY + 18}">${escapeHtml(caption)}</text></g></g>`;
+  }).join("");
+  const dateLabel = (row) => row?.[key] ? new Date(`${row[key]}T00:00:00Z`).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", timeZone: "UTC" }) : "";
+  const axisLabels = values.map((row, index) => `<text class="dashboard-axis-label" x="${xAt(index)}" y="183" text-anchor="${index === 0 ? "start" : index === values.length - 1 ? "end" : "middle"}">${escapeHtml(daily ? dateLabel(row) : dashboardWeekLabel(row.week))}</text>`).join("");
+  const itemTotal = daily ? items.reduce((total, row) => total + Number(row.count || 0), 0) : Number(items.at(-1)?.count || 0);
+  const runTotal = daily ? runValues.reduce((total, row) => total + Number(row.count || 0), 0) : Number(runValues.at(-1)?.count || 0);
+  return `<article class="dashboard-chart-card">
+    <div class="dashboard-chart-heading"><div><h3>${title}</h3><p>완료된 WI와 성공한 Run · UTC 기준</p></div><span>${daily ? "최근 7일" : "최근 8주"}</span></div>
+    <div class="dashboard-chart-legend"><span><i class="is-work-items"></i>WI</span><span><i class="is-runs"></i>Run</span></div>
+    ${values.length ? `<svg class="dashboard-line-chart" viewBox="0 0 ${width} 190" role="img" aria-label="${title}">${grid}<polyline class="dashboard-chart-line is-work-items" points="${points(items)}"/><polyline class="dashboard-chart-line is-runs" points="${points(runValues)}"/>${dots(items, runValues, "is-work-items", "WI")}${dots(runValues, items, "is-runs", "Run")}${axisLabels}</svg>` : `<div class="dashboard-chart-empty">표시할 기록이 없습니다.</div>`}
+    <div class="dashboard-chart-footnote"><span>${daily ? "오늘 포함 7일" : "주 시작은 월요일"} · 종료 시각 기준</span><strong>${daily ? "7일 합계" : "이번 주"} WI ${itemTotal.toLocaleString("ko-KR")} · Run ${runTotal.toLocaleString("ko-KR")}</strong></div>
+  </article>`;
+}
+
+function dashboardPriorityChart(priorities) {
+  const definitions = [
+    ["urgent", "긴급", "urgent"], ["high", "높음", "high"],
+    ["normal", "보통", "normal"], ["low", "낮음", "low"],
   ];
-}
-
-function filteredOverviewNodes() {
-  const query = state.overviewQuery.toLocaleLowerCase();
-  return overviewNodes().filter((node) => {
-    if (state.overviewScope !== "all" && node.type !== state.overviewScope) return false;
-    if (state.overviewStatus && node.status !== state.overviewStatus) return false;
-    if (!query) return true;
-    return [node.id, node.title, node.intent, node.feature_title, node.work_item_title]
-      .filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(query));
+  const total = definitions.reduce((sum, [key]) => sum + Number(priorities?.[key] || 0), 0);
+  let cursor = 0;
+  const stops = definitions.map(([key, label, tone]) => {
+    const count = Number(priorities?.[key] || 0);
+    const start = total ? cursor / total * 100 : 0;
+    cursor += count;
+    const end = total ? cursor / total * 100 : 0;
+    return { key, label, tone, count, start, end };
   });
+  const background = total
+    ? `conic-gradient(${stops.map((stop) => `var(--dashboard-${stop.tone}) ${stop.start}% ${stop.end}%`).join(",")})`
+    : "conic-gradient(var(--line) 0 100%)";
+  const legend = stops.map((stop) => `<div class="dashboard-priority-row"><span><i class="dashboard-priority-swatch ${stop.tone}"></i>${stop.label}</span><strong>${stop.count.toLocaleString("ko-KR")}</strong></div>`).join("");
+  return `<article class="dashboard-chart-card">
+    <div class="dashboard-chart-heading"><div><h3>WI 우선순위 분포</h3><p>완료·취소되지 않은 Work Item</p></div><span>현재</span></div>
+    <div class="dashboard-priority-content"><div class="dashboard-donut" style="--dashboard-donut:${background}" role="img" aria-label="미완료 WI ${total}개"><div><b>${total.toLocaleString("ko-KR")}</b><span>미완료 WI</span></div></div><div class="dashboard-priority-legend">${legend}</div></div>
+  </article>`;
 }
 
-function overviewRunRingRadius(runCount, spread) {
-  const runDiameter = 16;
-  const minimumGap = 18;
-  const circumferenceRadius = (Math.max(runCount, 1) * (runDiameter + minimumGap)) / (Math.PI * 2);
-  return Math.max(128, circumferenceRadius) * spread;
-}
-
-function overviewWorkItemClusterRadius(runCount, spread) {
-  if (!runCount) return 82 * spread;
-  return overviewRunRingRadius(runCount, spread) + 24 * spread;
-}
-
-function packOverviewCircles(circles, reservedRadius = 0, gap = 30) {
-  const positions = new Map();
-  const placed = reservedRadius > 0 ? [{ id: null, x: 0, y: 0, radius: reservedRadius }] : [];
-  const ordered = [...circles].sort((left, right) => right.radius - left.radius || left.id.localeCompare(right.id));
-  const directions = 40;
-
-  for (const circle of ordered) {
-    if (!placed.length) {
-      positions.set(circle.id, { x: 0, y: 0 });
-      placed.push({ ...circle, x: 0, y: 0 });
-      continue;
-    }
-    let accepted = null;
-    for (let ring = 0; ring < 80 && !accepted; ring += 1) {
-      const distance = ring * 28 + (reservedRadius ? reservedRadius + circle.radius + gap : 0);
-      for (let step = 0; step < directions; step += 1) {
-        const angle = (Math.PI * 2 * step) / directions + ring * .31;
-        const candidate = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
-        const collides = placed.some((other) => {
-          const minimumDistance = circle.radius + other.radius + gap;
-          return Math.hypot(candidate.x - other.x, candidate.y - other.y) < minimumDistance;
-        });
-        if (!collides) { accepted = candidate; break; }
-      }
-    }
-    const position = accepted || { x: placed.length * (circle.radius * 2 + gap), y: 0 };
-    positions.set(circle.id, position);
-    placed.push({ ...circle, ...position });
-  }
-
-  const radius = placed.reduce((maximum, circle) => {
-    if (circle.id === null) return Math.max(maximum, circle.radius);
-    return Math.max(maximum, Math.hypot(circle.x, circle.y) + circle.radius);
-  }, reservedRadius);
-  return { positions, radius };
-}
-
-function overviewLayout(nodes) {
-  const positions = new Map();
-  const features = nodes.filter((node) => node.type === "feature");
-  const workItems = nodes.filter((node) => node.type === "work_item");
-  const runs = nodes.filter((node) => node.type === "run");
-  const spread = state.overviewSpread ? 1.3 : 1;
-  const visibleWorkItemIds = new Set(workItems.map((item) => item.id));
-  const runGroups = new Map();
-  for (const run of runs) {
-    if (!visibleWorkItemIds.has(run.work_item_id)) continue;
-    const group = runGroups.get(run.work_item_id) || [];
-    group.push(run);
-    runGroups.set(run.work_item_id, group);
-  }
-
-  const visibleFeatureIds = new Set(features.map((feature) => feature.id));
-  const workItemGroups = new Map(features.map((feature) => [feature.id, []]));
-  workItemGroups.set("orphan", []);
-  for (const item of workItems) {
-    const parentId = visibleFeatureIds.has(item.feature_id) ? item.feature_id : "orphan";
-    workItemGroups.get(parentId).push(item);
-  }
-
-  const graphGroups = [];
-  for (const feature of features) {
-    const children = workItemGroups.get(feature.id);
-    const circles = children.map((item) => ({
-      id: item.id,
-      radius: overviewWorkItemClusterRadius((runGroups.get(item.id) || []).length, spread),
-    }));
-    const local = packOverviewCircles(circles, 92 * spread, 34 * spread);
-    graphGroups.push({ id: `group:${feature.id}`, feature, children, local, radius: local.radius + 34 * spread });
-  }
-  const orphanChildren = workItemGroups.get("orphan");
-  if (orphanChildren.length) {
-    const circles = orphanChildren.map((item) => ({
-      id: item.id,
-      radius: overviewWorkItemClusterRadius((runGroups.get(item.id) || []).length, spread),
-    }));
-    const local = packOverviewCircles(circles, 0, 42 * spread);
-    graphGroups.push({ id: "group:orphan", feature: null, children: orphanChildren, local, radius: local.radius + 34 * spread });
-  }
-
-  const attachedRunIds = new Set([...runGroups.values()].flat().map((run) => run.id));
-  const standaloneRuns = runs.filter((run) => !attachedRunIds.has(run.id));
-  if (standaloneRuns.length) {
-    const local = packOverviewCircles(standaloneRuns.map((run) => ({ id: run.id, radius: 32 * spread })), 0, 18 * spread);
-    graphGroups.push({ id: "group:runs", feature: null, children: [], standaloneRuns, local, radius: local.radius + 24 * spread });
-  }
-
-  const packedGroups = packOverviewCircles(
-    graphGroups.map((group) => ({ id: group.id, radius: group.radius })),
-    0,
-    55 * spread,
-  );
-  for (const group of graphGroups) {
-    const groupPosition = packedGroups.positions.get(group.id) || { x: 0, y: 0 };
-    if (group.feature) positions.set(group.feature.id, groupPosition);
-    for (const item of group.children) {
-      const localPosition = group.local.positions.get(item.id) || { x: 0, y: 0 };
-      positions.set(item.id, { x: groupPosition.x + localPosition.x, y: groupPosition.y + localPosition.y });
-    }
-    for (const run of group.standaloneRuns || []) {
-      const localPosition = group.local.positions.get(run.id) || { x: 0, y: 0 };
-      positions.set(run.id, { x: groupPosition.x + localPosition.x, y: groupPosition.y + localPosition.y });
-    }
-  }
-
-  for (const [workItemId, group] of runGroups) {
-    const parent = positions.get(workItemId);
-    if (!parent) continue;
-    const radius = overviewRunRingRadius(group.length, spread);
-    group.forEach((run, index) => {
-      const angle = (Math.PI * 2 * index) / group.length - Math.PI / 2;
-      positions.set(run.id, { x: parent.x + Math.cos(angle) * radius, y: parent.y + Math.sin(angle) * radius });
-    });
-  }
-
-  for (const node of nodes) {
-    if (!positions.has(node.id)) positions.set(node.id, { x: 0, y: 0 });
-  }
-  const nodeRadius = (node) => node.type === "feature" ? 82 : node.type === "work_item" ? 76 : 16;
-  const bounds = nodes.reduce((result, node) => {
-    const position = positions.get(node.id);
-    const radius = nodeRadius(node) * spread;
-    return {
-      minX: Math.min(result.minX, position.x - radius), maxX: Math.max(result.maxX, position.x + radius),
-      minY: Math.min(result.minY, position.y - radius), maxY: Math.max(result.maxY, position.y + radius),
-    };
-  }, { minX: 0, maxX: 0, minY: 0, maxY: 0 });
-  const contentWidth = bounds.maxX - bounds.minX;
-  const contentHeight = bounds.maxY - bounds.minY;
-  const width = Math.max(1400, contentWidth + 180);
-  const height = Math.max(760, contentHeight + 180);
-  const offsetX = (width - contentWidth) / 2 - bounds.minX;
-  const offsetY = (height - contentHeight) / 2 - bounds.minY;
-  for (const [id, position] of positions) positions.set(id, { x: position.x + offsetX, y: position.y + offsetY });
-  return { positions, width, height };
-}
-
-function overviewFeatureNodeHtml(node, position) {
-  const lines = overviewFeatureTitleLines(node.title);
-  return `<g class="overview-node overview-node-feature ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(node.title)}">
-    <title>${escapeHtml(node.title)}</title><rect x="-72" y="-55" width="144" height="110" rx="17"></rect>
-    <text class="overview-node-id" text-anchor="middle" y="-29">${escapeHtml(node.id)}</text>
-    ${lines.map((line, index) => `<text class="overview-node-title" text-anchor="middle" y="${lines.length === 1 ? 2 : -2 + index * 22}">${escapeHtml(line)}</text>`).join("")}
-    <text class="overview-node-count" text-anchor="middle" y="39">${node.childCount} WIs</text>
-  </g>`;
-}
-
-function overviewWorkItemNodeHtml(node, position) {
-  return `<g class="overview-node overview-node-work-item ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(node.title)}">
-    <title>${escapeHtml(node.title)}</title><rect x="-66" y="-39" width="132" height="78" rx="13"></rect>
-    <text class="overview-node-id" text-anchor="middle" y="-18">${escapeHtml(node.id)}</text>
-    <text class="overview-node-title" text-anchor="middle" y="5">${escapeHtml(overviewShortTitle(node.title, 10))}</text>
-    <text class="overview-node-count" text-anchor="middle" y="25">${node.childCount} Runs</text>
-  </g>`;
-}
-
-function overviewRunNodeHtml(node, position) {
-  const status = runStatusLabel(node.status);
-  return `<g class="overview-node overview-node-run ${overviewNodeStatusClass(node.status)}" data-overview-node="${escapeHtml(node.id)}" transform="translate(${position.x} ${position.y})" tabindex="0" role="button" aria-label="${escapeHtml(node.id)} ${escapeHtml(status)}">
-    <title>${escapeHtml(node.intent || node.id)}</title><circle r="8"></circle>
-  </g>`;
-}
-
-function overviewSelectionHtml(node) {
-  if (!node) return "";
-  const typeLabel = { feature: "Feature", work_item: "WorkItem", run: "Run" }[node.type];
-  const parent = node.type === "work_item" ? node.feature_title : node.type === "run" ? node.work_item_title : null;
-  const action = node.type === "work_item"
-    ? `<button type="button" data-overview-open-work-item="${escapeHtml(node.id)}">WorkItem 상세 보기 →</button>`
-    : node.type === "run"
-      ? `<button type="button" data-overview-open-run="${escapeHtml(node.id)}" data-overview-run-work-item="${escapeHtml(node.work_item_id || "")}">Run 상세 보기 →</button>` : "";
-  return `<div class="overview-selection-heading"><span>${escapeHtml(typeLabel)}</span><button type="button" data-overview-close aria-label="상세 닫기">×</button></div>
-    <code>${escapeHtml(node.id)}</code><h3>${escapeHtml(node.title)}</h3>
-    <dl><div><dt>Status</dt><dd>${escapeHtml(node.status)}</dd></div>${parent ? `<div><dt>Parent</dt><dd>${escapeHtml(parent)}</dd></div>` : ""}<div><dt>Connected</dt><dd>${node.childCount || 0}</dd></div></dl>${action}`;
-}
-
-function applyOverviewTransform() {
-  if (!elements.overviewScene) return;
-  const { x, y } = state.overviewOffset;
-  elements.overviewScene.setAttribute("transform", `translate(${x} ${y}) scale(${state.overviewScale})`);
-}
-
-function bindOverviewNodes(nodes) {
-  document.querySelectorAll("[data-overview-node]").forEach((element) => {
-    const select = () => { state.overviewSelectedId = element.dataset.overviewNode; renderOverview(); };
-    const connectedEdge = () => [...document.querySelectorAll("[data-overview-edge-target]")]
-      .find((edge) => edge.dataset.overviewEdgeTarget === element.dataset.overviewNode);
-    element.addEventListener("click", (event) => { event.stopPropagation(); select(); });
-    element.addEventListener("pointerenter", () => connectedEdge()?.classList.add("is-hovered"));
-    element.addEventListener("pointerleave", () => connectedEdge()?.classList.remove("is-hovered"));
-    element.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); }
-    });
-  });
-  document.querySelector("[data-overview-close]")?.addEventListener("click", () => { state.overviewSelectedId = null; renderOverview(); });
-  document.querySelector("[data-overview-open-work-item]")?.addEventListener("click", (event) => {
-    switchView("work-items", event.currentTarget.dataset.overviewOpenWorkItem);
-  });
-  document.querySelector("[data-overview-open-run]")?.addEventListener("click", (event) => {
-    switchView("runs", event.currentTarget.dataset.overviewRunWorkItem || null, event.currentTarget.dataset.overviewOpenRun);
-  });
+function dashboardFeatureProgress(features) {
+  const shown = (features || []).slice(0, 8);
+  const rows = shown.map((feature) => {
+    const percent = Math.max(0, Math.min(100, Number(feature.progress_percent || 0)));
+    const title = `${feature.title} · ${percent}%`;
+    return `<div class="dashboard-feature-row" title="${escapeHtml(title)}"><div class="dashboard-feature-name"><strong>${escapeHtml(feature.title)}</strong><span>${feature.status === "planned" ? "계획됨" : "진행 중"}</span></div><div class="dashboard-progress-track" role="progressbar" aria-label="${escapeHtml(feature.title)} 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><i style="width:${percent}%"></i></div><b>${percent}%</b></div>`;
+  }).join("");
+  return `<article class="dashboard-chart-card dashboard-feature-card">
+    <div class="dashboard-chart-heading"><div><h3>Feature 진행률</h3><p>연결된 취소 제외 WI 중 완료 비율</p></div><span>계획·진행 중</span></div>
+    ${rows ? `<div class="dashboard-feature-list">${rows}</div>` : `<div class="dashboard-chart-empty">계획되었거나 진행 중인 Feature가 없습니다.</div>`}
+    ${(features || []).length > 8 ? `<p class="dashboard-chart-footnote">전체 ${(features || []).length}개 중 진행률이 낮은 8개 표시</p>` : ""}
+  </article>`;
 }
 
 function renderOverview() {
-  if (!state.overview || !elements.overviewScene) return;
-  const allNodes = overviewNodes();
-  const nodes = filteredOverviewNodes();
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const layout = overviewLayout(nodes);
-  const positions = layout.positions;
-  state.overviewCanvas = { width: layout.width, height: layout.height };
-  elements.overviewGraph.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
-  const links = state.overview.links.filter((link) => nodeById.has(link.source) && nodeById.has(link.target));
-  const edges = links.map((link) => {
-    const source = positions.get(link.source);
-    const target = positions.get(link.target);
-    const targetNode = nodeById.get(link.target);
-    const runStatusClass = targetNode?.type === "run" ? ` overview-edge-status-${escapeHtml(targetNode.status)}` : "";
-    const selectedClass = state.overviewSelectedId === link.target ? " is-selected" : "";
-    const edgeTarget = targetNode?.type === "run" ? ` data-overview-edge-target="${escapeHtml(link.target)}"` : "";
-    return `<line class="overview-edge overview-edge-${escapeHtml(link.kind.replaceAll("_", "-"))}${runStatusClass}${selectedClass}"${edgeTarget} x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"></line>`;
-  }).join("");
-  const nodeMarkup = nodes.map((node) => {
-    const position = positions.get(node.id);
-    if (node.type === "feature") return overviewFeatureNodeHtml(node, position);
-    if (node.type === "work_item") return overviewWorkItemNodeHtml(node, position);
-    return overviewRunNodeHtml(node, position);
-  }).join("");
-  elements.overviewScene.innerHTML = `${edges}${nodeMarkup}`;
-  applyOverviewTransform();
-
-  const counts = {
-    feature: allNodes.filter((node) => node.type === "feature").length,
-    work_item: allNodes.filter((node) => node.type === "work_item").length,
-  };
-  document.querySelector("#overview-all-count").textContent = String(allNodes.length);
-  document.querySelector("#overview-feature-count").textContent = String(counts.feature);
-  document.querySelector("#overview-work-item-count").textContent = String(counts.work_item);
-  document.querySelector("#overview-run-count").textContent = String(state.overview.summary.run_count);
-  elements.overviewEngineSummary.textContent = `Nodes ${nodes.length} · Links ${links.length}${state.overview.summary.truncated_runs ? " · 최근 Run 100개" : ""}`;
-  elements.visibleCount.textContent = `${allNodes.length} nodes`;
-  elements.dockSummary.textContent = `Feature ${counts.feature} · WorkItem ${counts.work_item} · Run ${state.overview.summary.run_count}`;
-
-  const selected = allNodes.find((node) => node.id === state.overviewSelectedId);
-  elements.overviewSelection.classList.toggle("hidden", !selected);
-  elements.overviewSelection.innerHTML = overviewSelectionHtml(selected);
-  bindOverviewNodes(nodes);
+  const data = state.overview;
+  if (!data || !elements.overviewDashboard) return;
+  const featureStates = data.features?.status || {};
+  const itemStates = data.work_items?.status || {};
+  const runStates = data.runs?.status || {};
+  const itemWait = Number(itemStates.backlog || 0) + Number(itemStates.ready || 0);
+  const cancelledFeatures = Number(featureStates.cancelled || 0);
+  const cancelledItems = Number(itemStates.cancelled || 0);
+  const cancelledRuns = Number(runStates.cancelled || 0);
+  const cards = [
+    dashboardSummaryCard({
+      title: "Feature", description: "기능 단위", total: data.features?.total,
+      metrics: [dashboardMetric("진행 중", dashboardCount(featureStates, "active"), "is-active"), dashboardMetric("계획됨", dashboardCount(featureStates, "planned")), dashboardMetric("일시 중지", dashboardCount(featureStates, "paused"), "is-paused"), dashboardMetric("완료", dashboardCount(featureStates, "completed"), "is-done")],
+      footer: cancelledFeatures ? `취소 ${cancelledFeatures.toLocaleString("ko-KR")}개 포함` : "취소된 Feature 없음",
+    }),
+    dashboardSummaryCard({
+      title: "Work Item", description: "작업 항목", total: data.work_items?.total,
+      metrics: [dashboardMetric("대기", itemWait.toLocaleString("ko-KR")), dashboardMetric("실행 중", dashboardCount(itemStates, "in_progress"), "is-active"), dashboardMetric("막힘", dashboardCount(itemStates, "blocked"), "is-blocked"), dashboardMetric("완료", dashboardCount(itemStates, "done"), "is-done")],
+      footer: `이번 주 완료 ${Number(data.work_items?.this_week_done || 0).toLocaleString("ko-KR")}개 · 대기 = backlog + ready${cancelledItems ? ` · 취소 ${cancelledItems}개` : ""}`,
+    }),
+    dashboardSummaryCard({
+      title: "Run", description: "실행 기록", total: data.runs?.total,
+      metrics: [dashboardMetric("실행 중", dashboardCount(runStates, "running"), "is-active"), dashboardMetric("성공", dashboardCount(runStates, "succeeded"), "is-done"), dashboardMetric("실패", dashboardCount(runStates, "failed"), "is-blocked"), dashboardMetric("중단", dashboardCount(runStates, "interrupted"), "is-paused")],
+      footer: `이번 주 성공 완료 ${Number(data.runs?.this_week_succeeded || 0).toLocaleString("ko-KR")}개${cancelledRuns ? ` · 취소 ${cancelledRuns}개` : ""}`,
+    }),
+  ];
+  elements.overviewDashboard.innerHTML = `<section class="dashboard-summary-grid" aria-label="Feature, Work Item, Run 요약">${cards.join("")}</section>
+    <section class="dashboard-chart-grid" aria-label="우선순위와 완료 추세">${dashboardCompletionChart(data.work_items_completed_by_week, data.runs_succeeded_by_week)}${dashboardCompletionChart(data.work_items_completed_by_day, data.runs_succeeded_by_day, true)}${dashboardPriorityChart(data.work_item_priorities)}${dashboardFeatureProgress(data.feature_progress)}</section>`;
+  elements.visibleCount.textContent = `${Number(data.features?.total || 0)} Features · ${Number(data.work_items?.total || 0)} WI · ${Number(data.runs?.total || 0)} Runs`;
+  elements.dockSummary.textContent = `Feature ${Number(data.features?.total || 0)} · WI ${Number(data.work_items?.total || 0)} · Run ${Number(data.runs?.total || 0)}`;
 }
 
 async function loadOverview() {
   elements.overviewLoading.classList.remove("hidden");
+  elements.overviewError.classList.add("hidden");
   try {
-    state.overview = await api("/api/overview");
+    state.overview = await api("/api/overview/dashboard");
     elements.healthDot.className = "health-dot healthy";
     elements.healthLabel.textContent = "State DB 연결됨";
     renderOverview();
   } catch (error) {
     elements.healthDot.className = "health-dot failed";
     elements.healthLabel.textContent = "State DB 연결 실패";
-    elements.overviewScene.innerHTML = `<text class="overview-error" x="700" y="380" text-anchor="middle">${escapeHtml(error.message)}</text>`;
-    elements.overviewEngineSummary.textContent = "그래프를 불러오지 못했습니다.";
+    elements.overviewError.textContent = `Overview를 불러오지 못했습니다. ${error.message}`;
+    elements.overviewError.classList.remove("hidden");
   } finally {
     elements.overviewLoading.classList.add("hidden");
   }
@@ -1692,7 +1514,8 @@ async function switchView(view, selectedWorkItemId = null, selectedRunId = null)
   const title = isTimeline ? "Activity Timeline" : isMemory ? "MemoryGraph" : isOverview ? "Overview" : isFeatures ? "Features" : isRuns ? "Runs" : "Work Items";
   document.querySelector("#page-title").textContent = title;
   document.querySelector("#page-crumb").textContent = title;
-  elements.visibleCount.classList.toggle("hidden", isTimeline);
+  elements.visibleCount.classList.toggle("hidden", isTimeline || isOverview);
+  document.querySelector("#refresh-features").classList.toggle("hidden", !isFeatures);
   const createButton = document.querySelector("#open-draft-modal");
   createButton.classList.toggle("hidden", isOverview || isRuns || isMemory || isTimeline);
   createButton.innerHTML = isFeatures ? '<span aria-hidden="true">＋</span> 새 Feature' : '<span aria-hidden="true">＋</span> 새 Draft WI 생성';
@@ -2187,56 +2010,6 @@ document.addEventListener("feature:open-work-item", (event) => {
 document.querySelector("#nav-runs").addEventListener("click", (event) => { event.preventDefault(); switchView("runs"); });
 document.querySelector("#nav-activity-timeline").addEventListener("click", (event) => { event.preventDefault(); switchView("activity-timeline"); });
 document.querySelector("#refresh-overview").addEventListener("click", () => loadOverview());
-document.querySelector("#overview-query").addEventListener("input", (event) => { state.overviewQuery = event.target.value.trim(); renderOverview(); });
-document.querySelector("#overview-status").addEventListener("change", (event) => { state.overviewStatus = event.target.value; renderOverview(); });
-document.querySelectorAll("[data-overview-scope]").forEach((button) => button.addEventListener("click", () => {
-  state.overviewScope = button.dataset.overviewScope;
-  document.querySelectorAll("[data-overview-scope]").forEach((candidate) => candidate.classList.toggle("active", candidate === button));
-  renderOverview();
-}));
-document.querySelector("#overview-fit").addEventListener("click", () => { state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; applyOverviewTransform(); });
-document.querySelector("#overview-reset").addEventListener("click", () => {
-  state.overviewQuery = ""; state.overviewScope = "all"; state.overviewStatus = ""; state.overviewSelectedId = null;
-  state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; state.overviewSpread = false;
-  document.querySelector("#overview-query").value = ""; document.querySelector("#overview-status").value = "";
-  document.querySelector("#overview-spread").setAttribute("aria-pressed", "false");
-  document.querySelectorAll("[data-overview-scope]").forEach((button) => button.classList.toggle("active", button.dataset.overviewScope === "all"));
-  renderOverview();
-});
-document.querySelector("#overview-spread").addEventListener("click", (event) => {
-  state.overviewSpread = !state.overviewSpread;
-  event.currentTarget.setAttribute("aria-pressed", String(state.overviewSpread));
-  renderOverview();
-});
-function changeOverviewZoom(delta) {
-  state.overviewScale = Math.max(.55, Math.min(2.1, state.overviewScale + delta));
-  applyOverviewTransform();
-}
-document.querySelector("#overview-zoom-in").addEventListener("click", () => changeOverviewZoom(.15));
-document.querySelector("#overview-zoom-out").addEventListener("click", () => changeOverviewZoom(-.15));
-document.querySelector("#overview-zoom-reset").addEventListener("click", () => { state.overviewScale = 1; state.overviewOffset = { x: 0, y: 0 }; applyOverviewTransform(); });
-elements.overviewGraph.addEventListener("wheel", (event) => { event.preventDefault(); changeOverviewZoom(event.deltaY < 0 ? .1 : -.1); }, { passive: false });
-elements.overviewGraph.addEventListener("pointerdown", (event) => {
-  if (event.target.closest?.("[data-overview-node]")) return;
-  state.overviewDragging = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, origin: { ...state.overviewOffset } };
-  elements.overviewGraph.setPointerCapture(event.pointerId);
-  elements.overviewGraph.classList.add("is-dragging");
-});
-elements.overviewGraph.addEventListener("pointermove", (event) => {
-  if (!state.overviewDragging || state.overviewDragging.pointerId !== event.pointerId) return;
-  const bounds = elements.overviewGraph.getBoundingClientRect();
-  state.overviewOffset = {
-    x: state.overviewDragging.origin.x + (event.clientX - state.overviewDragging.x) * state.overviewCanvas.width / bounds.width,
-    y: state.overviewDragging.origin.y + (event.clientY - state.overviewDragging.y) * state.overviewCanvas.height / bounds.height,
-  };
-  applyOverviewTransform();
-});
-elements.overviewGraph.addEventListener("pointerup", (event) => {
-  if (state.overviewDragging?.pointerId !== event.pointerId) return;
-  state.overviewDragging = null;
-  elements.overviewGraph.classList.remove("is-dragging");
-  elements.overviewGraph.releasePointerCapture(event.pointerId);
-});
 document.querySelector("#refresh-runs").addEventListener("click", () => loadRuns());
 document.querySelector("#runs-prev").addEventListener("click", () => { state.runsOffset = Math.max(0, state.runsOffset - state.runsLimit); loadRuns(); });
 document.querySelector("#runs-next").addEventListener("click", () => { state.runsOffset += state.runsLimit; loadRuns(); });
@@ -2332,4 +2105,5 @@ document.addEventListener("keydown", (event) => {
 setSidebarCollapsed(readSidebarPreference(), false);
 setFontScale(readFontScalePreference(), false);
 buildRunsStatusFilters();
+switchView("overview");
 loadItems();
