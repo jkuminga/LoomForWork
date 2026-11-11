@@ -39,7 +39,7 @@ const state = {
   items: [],
   selectedId: null,
   selectedContext: null,
-  statusFilters: new Set(),
+  statusFilters: new Set(["ready"]),
   kindFilters: new Set(),
   memoStatusFilter: "",
   memoKindFilter: "",
@@ -1155,7 +1155,8 @@ async function loadItems({ selectId = null } = {}) {
     buildFilters("#status-filters", "status", STATUS_OPTIONS);
     buildFilters("#kind-filters", "kind", KIND_OPTIONS);
     renderItems();
-    const target = selectId || (state.selectedId && state.items.some((item) => item.id === state.selectedId) ? state.selectedId : state.items[0]?.id);
+    const visibleItems = filteredItems();
+    const target = selectId || (visibleItems.some((item) => item.id === state.selectedId) ? state.selectedId : visibleItems[0]?.id);
     if (target) await selectItem(target);
   } catch (error) {
     elements.healthDot.className = "health-dot failed";
