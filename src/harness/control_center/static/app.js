@@ -1516,6 +1516,7 @@ async function switchView(view, selectedWorkItemId = null, selectedRunId = null)
   document.querySelector("#page-crumb").textContent = title;
   elements.visibleCount.classList.toggle("hidden", isTimeline || isOverview);
   document.querySelector("#refresh-features").classList.toggle("hidden", !isFeatures);
+  document.querySelector("#memory-refresh").classList.toggle("hidden", !isMemory);
   const createButton = document.querySelector("#open-draft-modal");
   createButton.classList.toggle("hidden", isOverview || isRuns || isMemory || isTimeline);
   createButton.innerHTML = isFeatures ? '<span aria-hidden="true">＋</span> 새 Feature' : '<span aria-hidden="true">＋</span> 새 Draft WI 생성';
