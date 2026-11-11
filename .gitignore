@@ -8,6 +8,7 @@
 .harness/runtime/
 .harness/selections/
 .harness/review-plans/
+.harness/backups/
 
 # Python test caches.
 __pycache__/
@@ -16,3 +17,5 @@ __pycache__/
 
 # E2E test logs
 .playwright-cli
+output/playwright/
+
