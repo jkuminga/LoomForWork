@@ -4,7 +4,8 @@
 
 ## 프로젝트 작업 시작
 
-- UPS(요청 시작 훅)의 `<work-selection-context>`를 받은 요청은 `$work-start` 스킬을 실행하고 해당 패킷을 입력으로 사용한다. 선택한 WI(작업 항목)의 복구와 Run(실행) 시작 절차는 해당 스킬을 따른다.
+- w/ 요청 : UPS(요청 시작 훅)의 `<work-selection-context>`를 받은 요청은 `$work-start` 스킬을 실행하고 해당 패킷을 입력으로 사용한다. 선택한 WI(작업 항목)의 복구와 Run(실행) 시작 절차는 해당 스킬을 따른다.
+- 일반 요청:  UPS가 실행되지 않은 일반 요청의 경우 `<work-selection-context>` 가 존재하지 않으므로, $work-start를 시작하지 않는다. 활성 Run/Binding도 생성하지 않으며, 도구 사용도 남지 않으므로 $work-finish 또한 실행하지 않는다.
 
 ## 설계 문서 위치
 
