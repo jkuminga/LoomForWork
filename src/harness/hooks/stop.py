@@ -57,8 +57,8 @@ def dispatch_stop(
             return _warning(f"DB를 조회하지 못했습니다 ({type(error).__name__}).")
         if active_runs:
             return _warning(
-                "현재 세션 Binding은 없지만 다른 세션 또는 소유 불명의 활성 Run이 "
-                "남아 있습니다. UPS에서 소유권을 확인하세요."
+                "현재 세션에서 진행 중인 작업은 없지만, 다른 실행 중인 작업이 확인됐습니다. "
+                "새 요청을 시작할 때 작업 상태를 확인해 주세요."
             )
         return None
 

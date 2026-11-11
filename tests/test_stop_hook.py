@@ -136,7 +136,7 @@ class StopHookTests(unittest.TestCase):
         result = self.dispatch(self.event())
 
         self.assertNotIn("decision", result)
-        self.assertIn("다른 세션 또는 소유 불명", result["systemMessage"])
+        self.assertIn("현재 세션에서 진행 중인 작업은 없지만", result["systemMessage"])
 
     def test_database_failure_warns_without_blocking(self) -> None:
         result = stop.dispatch_stop(
