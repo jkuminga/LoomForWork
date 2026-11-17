@@ -1,7 +1,7 @@
 import {
   ALL_MEMORY_TYPES,
   ALL_RELATIONSHIP_TYPES,
-} from "../../../vendor/memory-graph/ts/src/models.ts";
+} from "../../../codex-compass/vendor/memory-graph/ts/src/models.ts";
 
 import type {
   FinalizeMemoryClient,

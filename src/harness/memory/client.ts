@@ -3,12 +3,12 @@ import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { Database as BunDatabase } from "bun:sqlite";
 
-import { SQLiteBackend } from "../../../vendor/memory-graph/ts/src/backends/sqlite.ts";
+import { SQLiteBackend } from "../../../codex-compass/vendor/memory-graph/ts/src/backends/sqlite.ts";
 import {
   createMemory,
   createRelationshipProperties,
   SearchQuerySchema,
-} from "../../../vendor/memory-graph/ts/src/models.ts";
+} from "../../../codex-compass/vendor/memory-graph/ts/src/models.ts";
 
 import type {
   InspectKeywordSearcher,

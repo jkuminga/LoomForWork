@@ -14,6 +14,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+codex-compass/vendor/memory-graph/ts/node_modules/
 
 # E2E test logs
 .playwright-cli

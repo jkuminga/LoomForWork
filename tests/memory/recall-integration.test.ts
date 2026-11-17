@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { SQLiteBackend } from "../../vendor/memory-graph/ts/src/backends/sqlite.ts";
-import { createMemory } from "../../vendor/memory-graph/ts/src/models.ts";
+import { SQLiteBackend } from "../../codex-compass/vendor/memory-graph/ts/src/backends/sqlite.ts";
+import { createMemory } from "../../codex-compass/vendor/memory-graph/ts/src/models.ts";
 import {
   openMemoryInspectClient,
   openMemoryFinalizeClient,
