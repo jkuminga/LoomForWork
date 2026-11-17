@@ -70,7 +70,7 @@ npm run memory:setup
 bun test tests/memory
 npm run typecheck:memory
 .venv/bin/python -m unittest discover -s tests -p 'test_memory_mcp_server.py' -q</code></pre><p>테스트는 임시 DB를 사용해야 한다. DB 파일과 WAL·SHM 보조 파일은 Git에서 제외하고, 원본 로그·프롬프트·비밀정보를 기억이나 Receipt(실행 결과 응답)에 넣지 않는다.</p></details>
-<p>키워드 기반 Recall은 관계 그래프 BFS 확장, 전역·다중 프로젝트 통합, 별도 관측 플랫폼, 라이브러리 타입 확장까지 제공하지 않는다. 워크트리 공용 DB는 <a href="./viewer.html?file=research/worktree-shared-db-design.md">별도 설계</a>이며 현재 기본 경로와 혼동하지 않는다.</p></section>
+<p>키워드 기반 Recall은 관계 그래프 BFS 확장, 전역·다중 프로젝트 통합, 별도 관측 플랫폼, 라이브러리 타입 확장까지 제공하지 않는다. 기억 DB는 같은 Git 저장소의 worktree가 공유하는 <code>&lt;git-common-dir&gt;/harness-data/memorygraph.db</code>에 둔다.</p></section>
 <section id="follow-up"><h2>8. 기존 보강 과제의 보존</h2>
 <p>기존 긴급 보강 문서를 삭제하면서 미완료 과제를 완료로 간주하지 않는다. 후보 생성의 DB 통일과 직접 promote·reject MCP 우회 제거는 구현돼 있다. 아래 항목은 별도 보강이 필요하다.</p>
 <ul><li><strong>병합 보존 검증:</strong> create·merge·reject와 재시도 테스트는 있지만, 기존 본문의 유효한 내용이 보존되는지 전용 계약·회귀 테스트로 더 명확히 검증할 필요가 있다.</li><li><strong>전체 경로 통합 검증:</strong> 실제 SQLite 노드·관계 저장과 Python MCP의 후보 마감은 각각 테스트한다. State DB → 실제 Python MCP → Bun CLI → MemoryGraph → 후보 마감을 한 번에 연결해 create·merge·reject·부분 실패 재시도까지 검증하는 범위는 별도 보강 과제로 남긴다.</li></ul>
