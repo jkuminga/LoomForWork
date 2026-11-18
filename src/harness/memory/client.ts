@@ -91,7 +91,7 @@ async function withoutInfoLogs<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-async function openMemoryBackend(databasePath: string): Promise<SQLiteBackend> {
+async function openMemoryBackendOnce(databasePath: string): Promise<SQLiteBackend> {
   if (existsSync(databasePath)) {
     const preflight = new BunDatabase(databasePath, { readonly: true, create: false });
     try {
@@ -119,6 +119,17 @@ async function openMemoryBackend(databasePath: string): Promise<SQLiteBackend> {
       // Keep the original connection or schema error.
     }
     throw error;
+  }
+}
+
+async function openMemoryBackend(databasePath: string): Promise<SQLiteBackend> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await openMemoryBackendOnce(databasePath);
+    } catch (error) {
+      if (attempt >= 7 || !String(error).includes("database is locked")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
   }
 }
 

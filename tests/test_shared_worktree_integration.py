@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -147,6 +148,32 @@ class SharedWorktreeIntegrationTests(unittest.TestCase):
                 observed = self._memory(reader, "read", memory_id)
                 self.assertEqual(observed, created)
                 self.assertEqual(Path(observed["database"]).resolve(), (common / "memorygraph.db").resolve())
+
+    def test_concurrent_writes_from_both_worktrees_are_visible(self) -> None:
+        common = self.primary / ".git" / "harness-data"
+        worktrees = (self.primary, self.secondary)
+        memory_ids = ("concurrent-primary", "concurrent-secondary")
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            state_futures = [executor.submit(self._state, worktree, "write") for worktree in worktrees]
+            memory_futures = [
+                executor.submit(self._memory, worktree, "write", memory_id)
+                for worktree, memory_id in zip(worktrees, memory_ids)
+            ]
+            state_records = [future.result() for future in state_futures]
+            memory_records = [future.result() for future in memory_futures]
+
+        for writer, reader, state_record, memory_record, memory_id in zip(
+            worktrees, reversed(worktrees), state_records, memory_records, memory_ids
+        ):
+            with self.subTest(writer=writer.name):
+                self.assertEqual(
+                    self._state(reader, "read", state_record["work_item_id"], state_record["run_id"]),
+                    state_record,
+                )
+                self.assertEqual(self._memory(reader, "read", memory_id), memory_record)
+                self.assertEqual(Path(state_record["database"]).resolve(), (common / "state.db").resolve())
+                self.assertEqual(Path(memory_record["database"]).resolve(), (common / "memorygraph.db").resolve())
 
 
 if __name__ == "__main__":

@@ -64,6 +64,7 @@ export class SQLiteBackend implements GraphBackend {
   async connect(): Promise<boolean> {
     try {
       this.db = new BunDatabase(this.dbPath, { create: true });
+      this.db.exec("PRAGMA busy_timeout=5000;");
       this.db.exec("PRAGMA journal_mode=WAL;");
       this.db.exec("PRAGMA foreign_keys=ON;");
       this._connected = true;
