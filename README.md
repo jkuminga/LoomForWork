@@ -1,7 +1,7 @@
 <div align="center">
 
 # Codex Compass
-![Codex Compass 메인 이미지](../../assets/readme-hero-image.png)
+![Codex Compass 메인 이미지](./readme-hero-image.png)
 
 > Codex의 프로젝트 작업을 WI(작업 항목), Run(실행 기록), 장기 기억으로 이어 주는 하네스
 
