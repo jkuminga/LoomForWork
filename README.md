@@ -1,9 +1,11 @@
 <div align="center">
 
 # Codex Compass
-![Codex Compass 메인 이미지](assets/readme-hero-image.png)
+![Codex Compass 메인 이미지](readme-hero-image.png)
 
 할 일을 정하고, 실행을 기록하고, 배운 것을 다음 작업으로 잇는 Codex 하네스
+
+[English](README.en.md)
 
 </div>
 
@@ -40,7 +42,7 @@ Codex Compass를 적용할 **프로젝트의 루트 디렉터리**에서 아래 
 bunx codex-compass-harness@latest install
 ```
 
-명령어를 실행하면 디렉터리에 아래 파일들이 설치됩니다. 하네스에 필요한 소스 코드와 스킬이 추가되며, `AGENTS.md`, `.gitignore`, `./codex/config.toml`, `./codex/hooks.json`, `package.json`처럼 기존 프로젝트와 공유하는 파일은 기존의 내용을 유지하면서 필요한 설정만 추가합니다.
+명령어를 실행하면 디렉터리에 아래 파일들이 설치됩니다. 하네스에 필요한 소스 코드와 스킬이 추가되며, `AGENTS.md`, `.gitignore`, `.codex/config.toml`, `.codex/hooks.json`, `package.json`처럼 기존 프로젝트와 공유하는 파일은 기존의 내용을 유지하면서 필요한 설정만 추가합니다.
 
 ```
 프로젝트 루트/
@@ -201,10 +203,10 @@ bunx codex-compass-harness@latest update
 
 ## ⚖️ 라이선스
 
-이 저장소는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](../../LICENSE)를 참고하세요.
+이 저장소는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
 
 하네스에 포함된 외부 소스와 이를 바탕으로 구성한 스킬의 라이선스 및 출처는 다음 파일에서 확인할 수 있습니다.
 
-- **ai-prd-workflow:** [라이선스](../../codex-compass/vendor/ai-prd-workflow/LICENSE) · [출처](../../codex-compass/vendor/ai-prd-workflow/UPSTREAM.md)
-- **MemoryGraph:** [라이선스](../../codex-compass/vendor/memory-graph/LICENSE) · [출처](../../codex-compass/vendor/memory-graph/UPSTREAM.md)
-- **기획 문서·Feature 추출 스킬:** [mvp-to-prd](../../codex-compass/skills/mvp-to-prd/LICENSE) · [verify-prd](../../codex-compass/skills/verify-prd/LICENSE) · [extract-features](../../codex-compass/skills/extract-features/LICENSE)
+- **ai-prd-workflow:** [라이선스](codex-compass/vendor/ai-prd-workflow/LICENSE) · [출처](codex-compass/vendor/ai-prd-workflow/UPSTREAM.md)
+- **MemoryGraph:** [라이선스](codex-compass/vendor/memory-graph/LICENSE) · [출처](codex-compass/vendor/memory-graph/UPSTREAM.md)
+- **기획 문서·Feature 추출 스킬:** [mvp-to-prd](.agents/skills/mvp-to-prd/LICENSE) · [verify-prd](.agents/skills/verify-prd/LICENSE) · [extract-features](.agents/skills/extract-features/LICENSE)
