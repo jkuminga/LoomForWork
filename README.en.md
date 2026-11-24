@@ -1,7 +1,7 @@
 <div align="center">
 
 # Codex Compass
-![Codex Compass hero image](readme-hero-image.png)
+![Codex Compass hero image](assets/readme-hero-image.png)
 
 A Codex harness that defines the work, records each run, and carries what you learn into the next task
 
@@ -230,4 +230,4 @@ The licenses and origins of bundled external sources and the skills based on the
 
 - **ai-prd-workflow:** [License](codex-compass/vendor/ai-prd-workflow/LICENSE) · [Upstream](codex-compass/vendor/ai-prd-workflow/UPSTREAM.md)
 - **MemoryGraph:** [License](codex-compass/vendor/memory-graph/LICENSE) · [Upstream](codex-compass/vendor/memory-graph/UPSTREAM.md)
-- **Planning and Feature extraction skills:** [mvp-to-prd](.agents/skills/mvp-to-prd/LICENSE) · [verify-prd](.agents/skills/verify-prd/LICENSE) · [extract-features](.agents/skills/extract-features/LICENSE)
+- **Planning and Feature extraction skills:** [mvp-to-prd](codex-compass/skills/mvp-to-prd/LICENSE) · [verify-prd](codex-compass/skills/verify-prd/LICENSE) · [extract-features](codex-compass/skills/extract-features/LICENSE)

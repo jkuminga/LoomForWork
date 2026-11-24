@@ -4,8 +4,8 @@ import {
   normalizeKeywords,
   normalizeLimit,
   recallMemories,
-} from "../../src/harness/memory/recall.ts";
-import type { KeywordSearcher, RecallSourceMemory } from "../../src/harness/memory/types.ts";
+} from "../../codex-compass/src/harness/memory/recall.ts";
+import type { KeywordSearcher, RecallSourceMemory } from "../../codex-compass/src/harness/memory/types.ts";
 
 function memory(
   id: string,

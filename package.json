@@ -1,11 +1,27 @@
 {
   "name": "codex-compass-harness",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "bin": {
+    "codex-compass-harness": "installer/cli.ts"
+  },
+  "files": [
+    "installer/",
+    "codex-compass/",
+    "assets/",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "console": "codex-compass/bin/harness-control-center",
+    "verify:install": "codex-compass/bin/harness-verify-install",
+    "worktree:setup": "codex-compass/bin/harness-configure-worktree",
     "memory:setup": "bun install --cwd codex-compass/vendor/memory-graph/ts --frozen-lockfile",
-    "memory:recall": "bun run src/harness/memory/cli.ts",
+    "memory:recall": "bun run codex-compass/src/harness/memory/cli.ts",
+    "test:python": "PYTHONPATH=codex-compass uv run --project codex-compass --locked python -m unittest discover -s tests -q",
     "test:memory": "bun test tests/memory",
     "typecheck:memory": "codex-compass/vendor/memory-graph/ts/node_modules/.bin/tsc --noEmit -p tsconfig.memory.json"
   }

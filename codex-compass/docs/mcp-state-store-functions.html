@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Harness v2 harness-state MCP 도구 32개와 상태 저장·검토 계획 함수의 현재 대응표">
+  <title>MCP · 상태 저장소 함수표</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f1e9;
+      --paper: #fffdf7;
+      --ink: #1d2925;
+      --muted: #60706a;
+      --line: #d6d2c6;
+      --accent: #176b5b;
+      --accent-soft: #dcece7;
+      --warm: #a25b32;
+      --warm-soft: #f5e5d9;
+      --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111714;
+        --paper: #18201d;
+        --ink: #e8eeeb;
+        --muted: #a6b4ae;
+        --line: #35413c;
+        --accent: #71c6b2;
+        --accent-soft: #203c35;
+        --warm: #e2a47d;
+        --warm-soft: #3d2d23;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.55 var(--sans);
+    }
+    code { font: .88em/1.45 var(--mono); }
+    .page { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 80px; }
+    header { max-width: 850px; margin-bottom: 30px; }
+    .eyebrow { margin: 0 0 10px; color: var(--accent); font: 700 .76rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    h1 { margin: 0 0 14px; font-size: clamp(2.2rem, 6vw, 4.7rem); line-height: 1; letter-spacing: -.06em; }
+    .lede { max-width: 68ch; margin: 0; color: var(--muted); font-size: 1.02rem; }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 34px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+    }
+    .flow code { padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 5px; background: var(--paper); }
+    .flow span { color: var(--muted); }
+    .tabs { display: flex; gap: 7px; margin-bottom: 13px; }
+    .tab {
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .tab[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+    section { margin-top: 44px; }
+    section[hidden] { display: none; }
+    .section-head { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-bottom: 12px; }
+    h2 { margin: 0; font-size: 1.25rem; letter-spacing: -.025em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: .82rem; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--paper); }
+    table { width: 100%; border-collapse: collapse; min-width: 780px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font: 700 .7rem var(--mono); letter-spacing: .05em; text-transform: uppercase; background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft)); }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: color-mix(in srgb, var(--paper) 92%, var(--accent-soft)); }
+    td:first-child code { color: var(--accent); font-weight: 700; }
+    .group-row td { padding: 8px 14px; color: var(--warm); font: 700 .72rem var(--mono); letter-spacing: .06em; text-transform: uppercase; background: var(--warm-soft); }
+    .call-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .call-list code { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); white-space: nowrap; }
+    .note { color: var(--muted); }
+    footer { margin-top: 52px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; }
+    footer a { color: var(--accent); }
+    @media (max-width: 640px) {
+      .page { width: min(100% - 22px, 1180px); padding-top: 36px; }
+      .section-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .table-wrap { border: 0; overflow: visible; background: transparent; }
+      table, tbody, tr, td { display: block; min-width: 0; }
+      thead { display: none; }
+      tbody { display: grid; gap: 10px; }
+      tr { padding: 13px; border: 1px solid var(--line); background: var(--paper); }
+      td { padding: 4px 0; border: 0; }
+      td::before { content: attr(data-label); display: block; margin: 5px 0 1px; color: var(--muted); font: 700 .64rem var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+      .group-row { padding: 0; border: 0; background: transparent; }
+      .group-row td { padding: 10px 0 0; background: transparent; }
+      .group-row td::before { display: none; }
+    }
+    @media print {
+      body { background: #fff; color: #111; }
+      .tabs { display: none; }
+      section[hidden] { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <p class="eyebrow">Harness v2 · interface map</p>
+      <h1>MCP · DB 함수표</h1>
+      <p class="lede">현재 <code>harness-state</code> 서버의 MCP 도구 32개를 내부 DB 함수와 검토 계획 처리에 대응시킨다. MCP는 Codex에 공개된 행동, DB 함수는 상태 규칙과 SQL, <code>review_plans.py</code>는 Run별 판단 JSON의 검증·복구를 맡는다.</p>
+    </header>
+
+    <div class="flow" aria-label="호출 흐름">
+      <code>Codex</code><span>→</span><code>mcp_server.py</code><span>→</span><code>state_store.py</code><span>→</span><code>SQLite</code><span>·</span><code>review_plans.py</code><span>→</span><code>Run별 JSON</code>
+    </div>
+
+    <nav class="tabs" aria-label="표 선택">
+      <button class="tab" type="button" data-target="mcp" aria-pressed="true">MCP 도구</button>
+      <button class="tab" type="button" data-target="db" aria-pressed="false">DB 함수</button>
+    </nav>
+
+    <section id="mcp">
+      <div class="section-head"><h2>MCP 도구 → 내부 함수</h2><p>현재 공개된 harness-state 인터페이스</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>MCP 도구</th><th>쉬운 설명</th><th>주요 입력</th><th>호출하는 내부 함수</th></tr></thead>
+          <tbody>
+            <tr class="group-row"><td colspan="4">조회</td></tr>
+            <tr><td data-label="MCP 도구"><code>get_project_status</code></td><td data-label="설명">전체 진행률, 다음 작업과 최근 변경을 가져온다.</td><td data-label="주요 입력">표시 개수</td><td data-label="DB 함수"><div class="call-list"><code>get_project_progress()</code><code>list_next_work_items()</code><code>get_recent_activity()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>get_work_context</code></td><td data-label="설명">작업 시작·재개에 필요한 상태와 완료 조건을 읽는다.</td><td data-label="주요 입력"><code>work_item_id</code></td><td data-label="DB 함수"><div class="call-list"><code>get_preflight_context()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>get_postflight_status</code></td><td data-label="설명">기본 조회는 Run 마감 전 AC·Artifact·pending 기억 후보를 확인한다. <code>view="final"</code>은 Run ID·상태, 완료 검증 결과, pending 후보 ID만 반환한다. pending 후보 자체는 종료 차단 조건이 아니다.</td><td data-label="주요 입력"><code>work_item_id</code>, 선택적 <code>view</code></td><td data-label="내부 함수"><div class="call-list"><code>get_postflight_status()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>search_work_items</code></td><td data-label="설명">UPS 후보 3개가 맞지 않을 때 요청의 핵심 용어로 기존 미완료 WorkItem을 한 번 검색한다.</td><td data-label="주요 입력"><code>terms</code> 2~5개, 상태 목록, <code>limit=5</code></td><td data-label="DB 함수"><div class="call-list"><code>search_work_items()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>list_run_tool_events</code></td><td data-label="설명">한 Run의 EVT(도구 실행 기록) 목록과 검토 경계인 <code>snapshot_max_seq</code>를 같은 DB 스냅샷에서 읽는다.</td><td data-label="주요 입력"><code>run_id</code>, 선택적 미검토 필터</td><td data-label="내부 함수"><div class="call-list"><code>get_run_tool_event_snapshot()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>get_review_plan</code></td><td data-label="설명">저장된 Run별 Review Plan(Artifact·Evidence 판단 JSON)을 읽고 검증한다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.load_review_plan()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>get_run_review_status</code></td><td data-label="설명">미검토·불일치 EVT ID를 요약 본문 없이 확인한다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>get_run_review_status()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>list_runs_with_unreviewed_tool_events</code></td><td data-label="설명">선택한 WI의 과거 Run 중 미검토 EVT가 남은 Run을 찾는다.</td><td data-label="주요 입력"><code>work_item_id</code></td><td data-label="내부 함수"><div class="call-list"><code>list_runs_with_unreviewed_tool_events()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>get_run_review_context</code></td><td data-label="설명">JSON이 없거나 손상된 과거 Run의 EVT·Artifact·Evidence·AC를 함께 읽는다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>get_run_review_context()</code></div></td></tr>
+
+            <tr class="group-row"><td colspan="4">계획</td></tr>
+            <tr><td data-label="MCP 도구"><code>create_feature</code></td><td data-label="설명">여러 WorkItem을 묶는 큰 목표·기능·작업 영역을 만든다.</td><td data-label="주요 입력">제목, 목표, 우선순위</td><td data-label="DB 함수"><div class="call-list"><code>create_feature()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>update_feature</code></td><td data-label="설명">Feature 내용이나 상태를 바꾼다.</td><td data-label="주요 입력"><code>feature_id</code>, 변경 내용</td><td data-label="DB 함수"><div class="call-list"><code>update_feature()</code><code>change_feature_status()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>create_work_item</code></td><td data-label="설명">실행할 작업과 초기 완료 조건을 함께 만든다.</td><td data-label="주요 입력">Feature, 제목, 목표, 완료 조건</td><td data-label="DB 함수"><div class="call-list"><code>create_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>create_ready_work_item</code></td><td data-label="설명">사용자가 명시한 완성 WI와 AC를 한 번에 ready 상태로 등록한다. Run은 시작하지 않는다.</td><td data-label="주요 입력">제목·종류·목표·다음 행동·AC</td><td data-label="내부 함수"><div class="call-list"><code>create_ready_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>create_draft_work_item</code></td><td data-label="설명">AC가 없는 Draft WI를 backlog에 만든다. 웹 콘솔 흐름에서 사용한다.</td><td data-label="주요 입력">제목·종류·목표·선택적 설명</td><td data-label="내부 함수"><div class="call-list"><code>create_draft_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>refine_draft_work_item</code></td><td data-label="설명">선택한 Draft에 다음 행동과 AC를 채워 ready WI로 구체화한다.</td><td data-label="주요 입력"><code>work_item_id</code>·우선순위·다음 행동·AC</td><td data-label="내부 함수"><div class="call-list"><code>refine_draft_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>revise_work_item</code></td><td data-label="설명">작업 목표, 우선순위와 다음 행동을 수정한다.</td><td data-label="주요 입력"><code>work_item_id</code>, 변경 내용</td><td data-label="DB 함수"><div class="call-list"><code>revise_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>change_work_item_state</code></td><td data-label="설명">작업을 준비·막힘·취소 상태로 변경한다.</td><td data-label="주요 입력">상태, 이유, 다음 행동</td><td data-label="DB 함수"><div class="call-list"><code>change_work_item_status()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>manage_criterion</code></td><td data-label="설명">완료 조건을 추가·수정하거나 명시적으로 면제한다.</td><td data-label="주요 입력">작업 또는 조건 ID, 행동, 설명</td><td data-label="DB 함수"><div class="call-list"><code>add_criterion()</code><code>revise_criterion()</code><code>waive_criterion()</code></div></td></tr>
+
+            <tr class="group-row"><td colspan="4">실행·검증</td></tr>
+            <tr><td data-label="MCP 도구"><code>start_work</code></td><td data-label="설명">ready WI를 시작하고 활성 Run을 만든다.</td><td data-label="주요 입력"><code>work_item_id</code>, 실행 목적 <code>intent</code>, 기억 검색어 <code>recall_query</code>, 선택적 <code>trace_ref</code></td><td data-label="내부 함수"><div class="call-list"><code>start_run()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>resolve_artifact</code></td><td data-label="설명">pending Artifact를 passed 또는 failed로 확정한다.</td><td data-label="주요 입력"><code>artifact_id</code>, 결과, 요약</td><td data-label="DB 함수"><div class="call-list"><code>resolve_artifact()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>verify_criterion</code></td><td data-label="설명">Artifact를 Evidence(AC의 근거)로 연결하고 AC 판정을 한 DB 트랜잭션에서 처리한다.</td><td data-label="주요 입력">AC ID·Artifact ID·판정·선택적 설명</td><td data-label="내부 함수"><div class="call-list"><code>verify_criterion_with_evidence()</code></div></td></tr>
+            <tr class="group-row"><td colspan="4">EVT 검토 계획 · 복구</td></tr>
+            <tr><td data-label="MCP 도구"><code>save_review_plan</code></td><td data-label="설명">EVT별 Artifact+Evidence / Artifact만 / 제외 판단을 검증하고 Run별 JSON에 원자적으로 고정한다.</td><td data-label="주요 입력"><code>run_id</code>, <code>plan</code> JSON</td><td data-label="내부 함수"><div class="call-list"><code>review_plans.save_review_plan()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>apply_review_plan_event</code></td><td data-label="설명">저장된 계획에서 EVT의 Artifact·Evidence 값을 읽어 적용한다.</td><td data-label="주요 입력"><code>run_id</code>·<code>event_id</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.apply_review_plan_event()</code><code>create_artifact()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>finalize_review_plan</code></td><td data-label="설명">계획대로 저장된 EVT의 <code>reviewed_at</code>을 채우고 입력·결과 요약을 한 트랜잭션에서 비운다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.finalize_review_plan()</code><code>mark_tool_events_reviewed()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>delete_review_plan</code></td><td data-label="설명">Run 종료와 모든 EVT의 검토 완료를 확인한 뒤 JSON 파일을 삭제한다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.delete_review_plan()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>recover_review_plan</code></td><td data-label="설명">선택 WI의 종료된 과거 Run에 남은 정상 JSON을 재적용한다. 저장된 A/E는 재사용한다.</td><td data-label="주요 입력"><code>work_item_id</code>·<code>run_id</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.recover_review_plan()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>apply_unplanned_review_recovery</code></td><td data-label="설명">JSON이 없거나 손상된 과거 Run에서 Codex가 확신한 EVT 판단만 적용한다.</td><td data-label="주요 입력"><code>work_item_id</code>·<code>run_id</code>·<code>decisions</code></td><td data-label="내부 함수"><div class="call-list"><code>review_plans.apply_unplanned_review_recovery()</code></div></td></tr>
+            <tr class="group-row"><td colspan="4">Run 종료 · 수동 복구</td></tr>
+            <tr><td data-label="MCP 도구"><code>finish_work</code></td><td data-label="설명">Run을 성공·재시도·막힘·중단·취소 결과로 종료한다. 성공한 Run의 WorkItem은 ready로 돌아가며, 완료 가능하면 고정 안내 문구를 저장한다.</td><td data-label="주요 입력"><code>run_id</code>, 결과, 요약, <code>completion_recommended</code> 또는 다음 행동</td><td data-label="DB 함수"><div class="call-list"><code>finish_run()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>close_work_item</code></td><td data-label="설명">사용자가 명시적으로 완료한 ready WorkItem을 Run 없이 닫는다.</td><td data-label="주요 입력"><code>work_item_id</code>, 이유</td><td data-label="DB 함수"><div class="call-list"><code>close_work_item()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>recover_abandoned_work</code></td><td data-label="설명">다른 세션이 끝났다고 사용자가 확인한 경우, 조회했던 정확한 Run만 중단 처리하고 WorkItem을 다시 실행 가능하게 만든다.</td><td data-label="주요 입력"><code>work_item_id</code>, <code>expected_run_id</code>, <code>user_confirmation="confirmed"</code></td><td data-label="DB 함수"><div class="call-list"><code>recover_abandoned_work()</code></div></td></tr>
+
+            <tr class="group-row"><td colspan="4">장기 기억 후보</td></tr>
+            <tr><td data-label="MCP 도구"><code>create_memory_candidate</code></td><td data-label="설명">발견한 기억 후보를 작업 도중 즉시 저장한다.</td><td data-label="주요 입력"><code>run_id</code>, 종류, 제목, 내용, 키워드</td><td data-label="DB 함수"><div class="call-list"><code>create_candidate()</code></div></td></tr>
+            <tr><td data-label="MCP 도구"><code>list_memory_candidates</code></td><td data-label="설명">아직 검토하지 않은 후보를 가져온다.</td><td data-label="주요 입력"><code>run_id</code></td><td data-label="DB 함수"><div class="call-list"><code>list_pending_candidates()</code></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note"><strong>Review Plan 계약:</strong> Run마다 <code>&lt;git-common-dir&gt;/harness-data/review-plans/&lt;run_id&gt;.json</code> 파일 하나를 둔다. 새 계획(v2)은 <code>schema_version</code>, <code>run_id</code>, <code>work_item_id</code>, <code>snapshot_max_seq</code>(계획에 포함할 마지막 EVT 순번), <code>decisions</code>(Artifact·Evidence 등록 판단과 이유), <code>excluded_event_ids</code>(등록하지 않을 EVT ID)를 담는다. 두 목록이 해당 순번까지의 모든 EVT를 빠짐없이 한 번씩 포함하는지 검증한다. 기존 v1의 <code>events</code> 계획도 읽고 복구한다. 판단 파일은 재작성하지 않으며, 실제 적용 결과의 정본은 DB다.</p>
+      <p class="note"><strong><code>progressed</code>:</strong> 이번 Run이 성공하면 Run은 <code>succeeded</code>, WI는 <code>ready</code>가 된다. 남은 작업의 <code>next_action</code>(다음 행동)을 적거나, AC가 모두 충족됐으면 <code>completion_recommended</code>(사용자 완료 권장)를 지정한다. WI의 <code>done</code>은 별도 요청이다.</p>
+    </section>
+
+    <section id="db" hidden>
+      <div class="section-head"><h2>상태 저장 · 지원 함수</h2><p>MCP·Hook이 재사용하는 내부 인터페이스</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>영역</th><th>함수</th><th>쉬운 설명</th><th>주 사용자</th></tr></thead>
+          <tbody>
+            <tr><td data-label="영역">DB</td><td data-label="함수"><code>open_database()</code></td><td data-label="설명">외래키 검사를 켠 안전한 SQLite 연결을 연다.</td><td data-label="주 사용자">모든 DB 함수</td></tr>
+            <tr><td data-label="영역">DB</td><td data-label="함수"><code>initialize_database()</code></td><td data-label="설명">스키마를 적용해 로컬 DB를 준비한다.</td><td data-label="주 사용자">설치·초기화 CLI</td></tr>
+            <tr><td data-label="영역">DB</td><td data-label="함수"><code>check_database_health()</code></td><td data-label="설명">DB 무결성과 외래키 위반을 검사한다.</td><td data-label="주 사용자">진단·테스트</td></tr>
+            <tr><td data-label="영역">Feature</td><td data-label="함수"><code>create_feature()</code> · <code>update_feature()</code> · <code>change_feature_status()</code></td><td data-label="설명">큰 목표·기능·작업 영역을 만들고 수정한다.</td><td data-label="주 사용자">계획 MCP</td></tr>
+            <tr><td data-label="영역">Feature</td><td data-label="함수"><code>get_feature()</code> · <code>list_features()</code></td><td data-label="설명">Feature와 계산된 진행률을 읽는다.</td><td data-label="주 사용자">조회 MCP</td></tr>
+            <tr><td data-label="영역">WorkItem</td><td data-label="함수"><code>create_work_item()</code> · <code>revise_work_item()</code> · <code>delete_backlog_work_item()</code></td><td data-label="설명">실행 작업을 만들고 수정하며, 시작 전 후보만 삭제한다.</td><td data-label="주 사용자">계획 MCP</td></tr>
+            <tr><td data-label="영역">WorkItem</td><td data-label="함수"><code>create_ready_work_item()</code> · <code>create_draft_work_item()</code> · <code>refine_draft_work_item()</code></td><td data-label="설명">완성 WI를 ready로 등록하거나, AC 없는 Draft를 만들고 선택 후 구체화한다.</td><td data-label="주 사용자">등록·Draft MCP</td></tr>
+            <tr><td data-label="영역">WorkItem</td><td data-label="함수"><code>get_work_item()</code> · <code>list_next_work_items()</code></td><td data-label="설명">작업 상태와 우선순위가 높은 다음 작업을 읽는다.</td><td data-label="주 사용자">조회 MCP</td></tr>
+            <tr><td data-label="영역">WorkItem</td><td data-label="함수"><code>search_work_items()</code></td><td data-label="설명"><code>title</code>·<code>goal</code>·<code>next_action</code>을 파라미터 SQLite LIKE로 검색한다. 제목 3점·목표 2점·다음 행동 1점으로 정렬하고 최대 5개를 반환한다.</td><td data-label="주 사용자">검색 MCP</td></tr>
+            <tr><td data-label="영역">WorkItem</td><td data-label="함수"><code>change_work_item_status()</code></td><td data-label="설명">허용된 규칙 안에서 작업 상태를 바꾼다.</td><td data-label="주 사용자">상태 변경 MCP</td></tr>
+            <tr><td data-label="영역">완료 조건</td><td data-label="함수"><code>add_criterion()</code> · <code>revise_criterion()</code></td><td data-label="설명">Acceptance Criterion을 추가하거나 근거 연결 전에 수정한다.</td><td data-label="주 사용자">계획 MCP</td></tr>
+            <tr><td data-label="영역">완료 조건</td><td data-label="함수"><code>pass_criterion()</code> · <code>fail_criterion()</code> · <code>waive_criterion()</code></td><td data-label="설명">완료 조건을 통과·실패·면제로 판정한다.</td><td data-label="주 사용자">검증 MCP</td></tr>
+            <tr><td data-label="영역">Run</td><td data-label="함수"><code>start_run()</code> · <code>finish_run()</code></td><td data-label="설명">실행을 시작하고 Run·WI를 결과에 맞는 상태로 함께 변경한다. 성공 Run의 WI는 ready로 돌아간다.</td><td data-label="주 사용자">실행 MCP</td></tr>
+            <tr><td data-label="영역">WorkItem 완료</td><td data-label="함수"><code>close_work_item()</code></td><td data-label="설명">사용자 요청을 받아 ready WorkItem의 AC·Evidence를 검증하고 done으로 닫는다.</td><td data-label="주 사용자">웹 콘솔·완료 MCP</td></tr>
+            <tr><td data-label="영역">Run</td><td data-label="함수"><code>get_run()</code> · <code>get_running_run()</code></td><td data-label="설명">특정 Run이나 현재 실행 중인 Run을 읽는다.</td><td data-label="주 사용자">MCP·Hook</td></tr>
+            <tr><td data-label="영역">Run 복구</td><td data-label="함수"><code>recover_abandoned_work()</code></td><td data-label="설명"><code>expected_run_id</code>가 여전히 해당 WorkItem의 running Run인지 한 트랜잭션에서 확인한다. 맞으면 Run을 interrupted, WorkItem을 기존 <code>next_action</code>이 유지된 ready로 바꾸고 State Event를 남긴다.</td><td data-label="주 사용자">복구 MCP</td></tr>
+            <tr class="group-row"><td colspan="4">Run 도구 기록 · Review Plan</td></tr>
+            <tr><td data-label="영역">EVT 기록</td><td data-label="함수"><code>record_run_tool_event()</code></td><td data-label="설명">PostToolUse가 일반 도구 실행을 현재 Run의 EVT로 기계적으로 저장한다. 조회 도구도 포함한다.</td><td data-label="주 사용자">PostToolUse Hook</td></tr>
+            <tr><td data-label="영역">EVT 조회</td><td data-label="함수"><code>get_run_tool_event_snapshot()</code> · <code>list_run_tool_events()</code></td><td data-label="설명">Run의 EVT와 스냅샷 경계 <code>snapshot_max_seq</code>를 제공한다.</td><td data-label="주 사용자">검토 MCP·Review Plan</td></tr>
+            <tr><td data-label="영역">검토 상태</td><td data-label="함수"><code>get_run_review_status()</code> · <code>mark_tool_events_reviewed()</code></td><td data-label="설명">미검토 ID를 조회하고, 처리된 EVT의 <code>reviewed_at</code> 기록과 입력·결과 요약 비우기를 한 DB 트랜잭션으로 묶는다.</td><td data-label="주 사용자">마감·복구 MCP</td></tr>
+            <tr><td data-label="영역">과거 Run 복구</td><td data-label="함수"><code>list_runs_with_unreviewed_tool_events()</code> · <code>get_run_review_context()</code></td><td data-label="설명">선택 WI의 미검토 Run과 그 EVT·Artifact·Evidence·AC를 읽는다.</td><td data-label="주 사용자">work-start 복구 MCP</td></tr>
+            <tr><td data-label="영역">Review Plan 파일</td><td data-label="함수"><code>save_review_plan()</code> · <code>load_review_plan()</code> · <code>finalize_review_plan()</code> · <code>delete_review_plan()</code></td><td data-label="설명">Run별 불변 JSON 판단을 검증·보존하고, 적용된 EVT를 마감한 뒤 안전하게 삭제한다. <code>review_plans.py</code>에 있다.</td><td data-label="주 사용자">검토 MCP</td></tr>
+            <tr><td data-label="영역">Review Plan 복구</td><td data-label="함수"><code>recover_review_plan()</code> · <code>apply_unplanned_review_recovery()</code></td><td data-label="설명">정상 계획을 재적용하거나 계획이 없을 때 확신한 판단만 종료된 원래 Run에 적용한다. <code>review_plans.py</code>에 있다.</td><td data-label="주 사용자">work-start 복구 MCP</td></tr>
+            <tr><td data-label="영역">Review Plan 정리</td><td data-label="함수"><code>cleanup_orphan_review_plans()</code></td><td data-label="설명">종료된 Run의 EVT가 모두 검토된 경우에만 남은 JSON을 정리한다. <code>review_plans.py</code>의 UPS용 내부 함수다.</td><td data-label="주 사용자">UserPromptSubmit Hook</td></tr>
+            <tr><td data-label="영역">Artifact</td><td data-label="함수"><code>create_artifact()</code> · <code>resolve_artifact()</code> · <code>get_run_artifacts()</code></td><td data-label="설명">실행 결과를 등록·확정·조회한다.</td><td data-label="주 사용자">검증 MCP·Hook</td></tr>
+            <tr><td data-label="영역">Artifact 복구</td><td data-label="함수"><code>record_artifact_for_recovery()</code></td><td data-label="설명">선택 WI의 종료된 원래 Run에 EVT 기반 Artifact를 중복 없이 보완한다. Codex에 직접 공개하지 않는 DB 함수다.</td><td data-label="주 사용자">Review Plan 복구</td></tr>
+            <tr><td data-label="영역">Evidence</td><td data-label="함수"><code>link_evidence()</code> · <code>get_criterion_evidence()</code></td><td data-label="설명">Artifact와 완료 조건의 증명 관계를 연결하고 읽는다.</td><td data-label="주 사용자">검증 MCP</td></tr>
+            <tr><td data-label="영역">Evidence·AC 판정</td><td data-label="함수"><code>verify_criterion_with_evidence()</code></td><td data-label="설명">Evidence 연결과 AC의 passed/failed 판정을 단일 DB 트랜잭션으로 적용한다. 기존 개별 함수는 유지한다.</td><td data-label="주 사용자">검증·복구 MCP</td></tr>
+            <tr><td data-label="영역">기억 후보</td><td data-label="함수"><code>create_candidate()</code> · <code>list_pending_candidates()</code></td><td data-label="설명">후보를 즉시 만들고 미검토 목록을 읽는다.</td><td data-label="주 사용자">기억 MCP·Skill</td></tr>
+            <tr><td data-label="영역">기억 후보</td><td data-label="함수"><code>promote_candidate()</code> · <code>reject_candidate()</code></td><td data-label="설명"><code>finalize_memory_candidate()</code> 내부에서 저장 성공 또는 제외가 확정된 후보를 마감한다.</td><td data-label="주 사용자">Memory MCP Adapter 내부 처리</td></tr>
+            <tr><td data-label="영역">Hook 조회</td><td data-label="함수"><code>get_preflight_context()</code> · <code>get_postflight_status()</code></td><td data-label="설명">작업 전후에 필요한 상태만 작게 묶어 반환한다.</td><td data-label="주 사용자">Hook·MCP</td></tr>
+            <tr><td data-label="영역">진행 조회</td><td data-label="함수"><code>get_project_progress()</code> · <code>get_recent_activity()</code></td><td data-label="설명">프로젝트 집계와 최근 State Event를 읽는다.</td><td data-label="주 사용자">조회 MCP</td></tr>
+            <tr class="group-row"><td colspan="4">Hook 지원 · Runtime Interface</td></tr>
+            <tr><td data-label="영역">UPS Run 복구</td><td data-label="함수"><code>list_running_runs()</code> · <code>recover_stale_run()</code></td><td data-label="설명">모든 running Run을 조회하고, 현재 세션의 이전 turn Binding과 정확히 일치하는 Run만 interrupted·ready로 원자적으로 복구한다. Run에는 종료 시각과 고정된 복구 요약·종료 이유를 함께 기록한다.</td><td data-label="주 사용자">UserPromptSubmit Hook</td></tr>
+            <tr><td data-label="영역">Runtime Binding</td><td data-label="함수"><code>save_binding()</code> · <code>load_binding()</code> · <code>delete_binding()</code> · <code>find_run_owner()</code></td><td data-label="설명">세션별 임시 파일로 session·turn·WorkItem·Run 연결을 관리하고 active WorkItem의 소유 세션을 찾는다. <code>recover_abandoned_work</code> 성공 후에는 복구된 Run을 가리키는 이전 Binding을 삭제한다. DB 함수는 아니며 <code>runtime_binding.py</code>에 둔다.</td><td data-label="주 사용자">UserPromptSubmit·Pre/PostToolUse·Stop</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer><a href="./harness-overview.md">← 문서 허브</a> · 이 표는 <code>src/harness/mcp_server.py</code>의 harness-state MCP 도구 32개를 다룬다. 장기 기억 저장을 맡는 별도 harness-memory MCP 서버와 웹 콘솔 API는 범위 밖이다. 실제 흐름은 <a href="./single-request-pipeline.html">단일 요청 파이프라인</a>, 스키마는 <a href="./state-store.html">상태 저장소</a>를 참고한다.</footer>
+  </main>
+  <script>
+    const tabs = [...document.querySelectorAll('.tab')];
+    const sections = [...document.querySelectorAll('main > section')];
+    tabs.forEach((tab) => tab.addEventListener('click', () => {
+      tabs.forEach((item) => item.setAttribute('aria-pressed', String(item === tab)));
+      sections.forEach((section) => { section.hidden = section.id !== tab.dataset.target; });
+    }));
+  </script>
+</body>
+</html>

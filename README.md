@@ -1,7 +1,7 @@
 <div align="center">
 
 # Codex Compass
-![Codex Compass 메인 이미지](readme-hero-image.png)
+![Codex Compass 메인 이미지](assets/readme-hero-image.png)
 
 할 일을 정하고, 실행을 기록하고, 배운 것을 다음 작업으로 잇는 Codex 하네스
 
@@ -209,4 +209,4 @@ bunx codex-compass-harness@latest update
 
 - **ai-prd-workflow:** [라이선스](codex-compass/vendor/ai-prd-workflow/LICENSE) · [출처](codex-compass/vendor/ai-prd-workflow/UPSTREAM.md)
 - **MemoryGraph:** [라이선스](codex-compass/vendor/memory-graph/LICENSE) · [출처](codex-compass/vendor/memory-graph/UPSTREAM.md)
-- **기획 문서·Feature 추출 스킬:** [mvp-to-prd](.agents/skills/mvp-to-prd/LICENSE) · [verify-prd](.agents/skills/verify-prd/LICENSE) · [extract-features](.agents/skills/extract-features/LICENSE)
+- **기획 문서·Feature 추출 스킬:** [mvp-to-prd](codex-compass/skills/mvp-to-prd/LICENSE) · [verify-prd](codex-compass/skills/verify-prd/LICENSE) · [extract-features](codex-compass/skills/extract-features/LICENSE)

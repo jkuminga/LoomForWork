@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { openMemoryFinalizeClient } from "../../src/harness/memory/client.ts";
+import { openMemoryFinalizeClient } from "../../codex-compass/src/harness/memory/client.ts";
 import { SQLiteBackend } from "../../codex-compass/vendor/memory-graph/ts/src/backends/sqlite.ts";
 
 const temporaryDirectories: string[] = [];

@@ -1,3 +1,11 @@
+# codex-compass:start
+/codex-compass/.venv/
+/codex-compass/**/node_modules/
+/codex-compass/runtime/selections/
+/codex-compass/**/__pycache__/
+/codex-compass/**/*.py[cod]
+# codex-compass:end
+
 # Local Harness state. The schema is versioned; runtime data is not.
 .harness/state.db
 .harness/state.db-shm
@@ -15,6 +23,9 @@ __pycache__/
 *.py[cod]
 .venv/
 codex-compass/vendor/memory-graph/ts/node_modules/
+
+# macOS Finder metadata.
+.DS_Store
 
 # E2E test logs
 .playwright-cli

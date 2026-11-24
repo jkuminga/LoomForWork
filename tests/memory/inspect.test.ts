@@ -4,11 +4,11 @@ import {
   MAX_CONTENT_PREVIEW_LENGTH,
   MAX_INSPECT_TERMS,
   inspectMemoryCandidate,
-} from "../../src/harness/memory/inspect.ts";
+} from "../../codex-compass/src/harness/memory/inspect.ts";
 import type {
   InspectSourceMemory,
   MemoryCandidateSnapshot,
-} from "../../src/harness/memory/types.ts";
+} from "../../codex-compass/src/harness/memory/types.ts";
 
 function candidate(
   overrides: Partial<MemoryCandidateSnapshot> = {},

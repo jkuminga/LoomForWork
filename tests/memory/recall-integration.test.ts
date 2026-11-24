@@ -9,10 +9,10 @@ import {
   openMemoryInspectClient,
   openMemoryFinalizeClient,
   openMemorySearchClient,
-} from "../../src/harness/memory/client.ts";
-import { inspectMemoryCandidate } from "../../src/harness/memory/inspect.ts";
-import { finalizeMemoryCandidate } from "../../src/harness/memory/finalize.ts";
-import { recallMemories } from "../../src/harness/memory/recall.ts";
+} from "../../codex-compass/src/harness/memory/client.ts";
+import { inspectMemoryCandidate } from "../../codex-compass/src/harness/memory/inspect.ts";
+import { finalizeMemoryCandidate } from "../../codex-compass/src/harness/memory/finalize.ts";
+import { recallMemories } from "../../codex-compass/src/harness/memory/recall.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -169,7 +169,7 @@ describe("MemoryGraph SQLite integration", () => {
 
     const projectRoot = resolve(import.meta.dir, "../..");
     const child = Bun.spawn(
-      [join(projectRoot, "bin/harness-memory"), "recall", "wrapper sqlite", "--limit", "3"],
+      [join(projectRoot, "codex-compass/bin/harness-memory"), "recall", "wrapper sqlite", "--limit", "3"],
       {
         cwd: projectRoot,
         env: { ...process.env, HARNESS_MEMORY_DB_PATH: databasePath },
@@ -281,7 +281,7 @@ describe("MemoryGraph SQLite integration", () => {
     }
 
     const projectRoot = resolve(import.meta.dir, "../..");
-    const child = Bun.spawn([join(projectRoot, "bin/harness-memory"), "inspect"], {
+    const child = Bun.spawn([join(projectRoot, "codex-compass/bin/harness-memory"), "inspect"], {
       cwd: projectRoot,
       env: { ...process.env, HARNESS_MEMORY_DB_PATH: databasePath },
       stdin: "pipe",

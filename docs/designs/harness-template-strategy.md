@@ -86,7 +86,7 @@ Git 공통 디렉터리의 공유 데이터 위치는 기존 멀티 worktree 설
 
 `format_version`은 이 호환성 파일의 형식 버전이다. `compatible_from`은 **현재 배포 버전으로 직접 업데이트할 수 있는 기존 하네스 버전의 정확한 목록**이다. 현재 배포 버전은 별도로 중복 기록하지 않고 npm `package.json`의 `version`을 사용한다. 첫 배포는 이전 설치 버전이 없으므로 `compatible_from`을 빈 배열로 둔다. 새 버전을 게시할 때 기존 버전별 공유 파일 설정과 공유 DB 구조가 새 코드와 호환되는지 검토해 허용 목록을 작성한다. 중간 버전을 건너뛰는 직접 업데이트도 목록에 명시된 경우에만 허용한다. 목록은 배포 원본 간의 호환성을 나타내며, 사용자가 공유 파일이나 DB를 임의로 변경한 경우까지 보증하지 않는다.
 
-현재 루트 `package.json`의 네 스크립트는 배포 CLI가 아니다. `memory:setup`은 MemoryGraph 의존성을 준비하는 개발용 편의 명령으로, 설치기는 잠금 파일을 이용해 같은 준비를 직접 수행한다. `memory:recall`은 개발용 기억 명령이며 설치 후에는 `codex-compass/bin/harness-memory`가 기억 CLI를 호출한다. `test:memory`와 `typecheck:memory`는 개발·게시 전 검증용이다. 이 네 명령은 개발 저장소에서 경로를 새 구조에 맞게 고쳐 사용할 수 있지만 사용자 프로젝트에 설치하지 않는다.
+현재 루트 `package.json`의 다섯 스크립트는 배포 CLI가 아니다. `memory:setup`은 MemoryGraph 의존성을 준비하는 개발용 편의 명령으로, 설치기는 잠금 파일을 이용해 같은 준비를 직접 수행한다. `memory:recall`은 개발용 기억 명령이며 설치 후에는 `codex-compass/bin/harness-memory`가 기억 CLI를 호출한다. `test:python`은 개발 저장소 루트의 `tests/`를 실행하며 `PYTHONPATH=codex-compass`와 하네스 Python 환경을 스크립트 안에서 지정한다. `test:memory`와 `typecheck:memory`는 개발·게시 전 검증용이다. 이 다섯 명령은 개발 저장소에서 사용하고 사용자 프로젝트에 설치하지 않는다.
 
 루트 `AGENTS.md` 전문은 패키지에도 포함한다. 설치기는 이 파일을 사용자 프로젝트에 통째로 덮어쓰지 않고 아래의 하네스 표시 구획에 삽입한다. 배포 전에는 이 전문에 개발 저장소에만 적용할 지침이나 개인 정보가 없는지 검토한다.
 
@@ -170,18 +170,17 @@ Git 공통 디렉터리의 공유 데이터 위치는 기존 멀티 worktree 설
 | `bin/orca-harness-state` | `codex-compass/bin/orca-harness-state` | Git 공통 디렉터리의 상태 백업·복원 명령이다. |
 | `.harness/schema.sql` | `codex-compass/schema.sql` | 배포할 DB 구조 정의다. 실제 DB는 Git 공통 디렉터리에 계속 생성한다. |
 | `pyproject.toml`, `uv.lock` | 각각 `codex-compass/` 아래 같은 파일명 | 하네스 Python 의존성 정의와 잠금 파일을 사용자 프로젝트의 설정에서 분리한다. |
-| 현재 루트 `package.json` | 개발 저장소 루트에서 npm 게시용 매니페스트로 개편하고 대상 프로젝트에는 복사하지 않음 | MemoryGraph 관련 네 `scripts`는 개발용이다. 설치기는 MemoryGraph 의존성을 직접 준비하고 실제 기억 명령은 `bin/harness-memory`가 실행한다. 설치본에 별도 루트 `package.json`을 만들지 않는다. |
+| 현재 루트 `package.json` | 개발 저장소 루트에서 npm 게시용 매니페스트로 개편하고, 설치 시 대상 프로젝트의 `package.json`에는 하네스 명령만 병합 | MemoryGraph 관련 명령은 개발용이다. 설치기는 MemoryGraph 의존성을 직접 준비하고 대상 프로젝트에는 `console`·`verify:install`·`worktree:setup` 명령을 추가한다. |
 | `tsconfig.memory.json` | 배포 제외, 개발 저장소에 유지 | 현재 설정의 `include`가 배포하지 않을 `tests/memory/**`를 참조한다. 개발용 타입 검사 설정으로 유지하고 하네스 경로 이동에 맞춰 참조 경로를 수정한다. |
 | `.codex/config.toml`, `.codex/hooks.json` | 대상 프로젝트의 같은 경로에 하네스 항목만 병합 | Codex가 읽는 프로젝트 연결 설정이다. 현재 파일을 통째로 덮어쓰지 않는다. |
 | `AGENTS.md`, `.gitignore` | 대상 프로젝트의 같은 파일에 하네스 관리 구획·규칙만 병합 | 기존 프로젝트 지침과 무시 규칙을 보존한다. |
 | `.agents/skills/work-start/**`, `.agents/skills/work-finish/**`, `.agents/skills/memory-finalize/**`, `.agents/skills/work-item-create/**` | 각 디렉터리를 `codex-compass/skills/<스킬명>/**`로 이동하고, 설치 시 대상 `.agents/skills/<스킬명>/**`에 반영 | 하네스의 WorkItem·Run 운영에 직접 필요한 스킬이다. 같은 이름의 기존 스킬은 덮어쓰지 않고 충돌로 보고한다. |
 | `.agents/skills/mvp-to-prd/**`, `.agents/skills/verify-prd/**` | 각 디렉터리를 `codex-compass/skills/<스킬명>/**`로 이동하고, 설치 시 대상 `.agents/skills/<스킬명>/**`에 반영 | MVP 문서를 PRD로 전환하고 결과를 원본과 대조하는 필수 스킬이다. 각 디렉터리의 `SKILL.md`와 `LICENSE`를 함께 포함한다. |
-| `.agents/skills/extract-features/**` | `codex-compass/skills/extract-features/**`로 이동하고, 선택 설치 시 대상 `.agents/skills/extract-features/**`에 반영 | PRD에서 Feature·WorkItem 후보를 추출하는 확장 흐름이며 핵심 Run 운영에는 필요하지 않다. |
+| `.agents/skills/extract-features/**` | `codex-compass/skills/extract-features/**`로 이동하고, 설치 시 대상 `.agents/skills/extract-features/**`에 반영 | PRD에서 Feature·WorkItem 후보를 추출하는 기본 설치 스킬이다. `SKILL.md`와 `LICENSE`를 함께 포함한다. |
 | `docs/harness-overview.md`, `docs/draft-work-items.md`, `docs/implementation-units.md`, `docs/long-term-memory-schema.html`, `docs/long-term-memory.html`, `docs/mcp-state-store-functions.html`, `docs/single-request-pipeline.html`, `docs/state-store.html` | 각 파일을 `codex-compass/docs/` 아래 같은 파일명으로 이동 | 하네스 사용·운영 문서와 서로 참조하는 상세 문서다. 이동 후 내부 링크와 경로 표기를 수정한다. |
 | `tests/**` | 배포 제외, 원본 개발 저장소의 `tests/**` 유지 | 하네스 개발·회귀 검증용이다. 대상 프로젝트의 `tests/`와 합치지 않는다. |
 | `design/**`, `docs/research/**`, `docs/designs/**` | 배포 제외, 원본 개발 저장소에 유지 | 설계 이력·조사·목업이다. 대상 프로젝트의 `design/`, `docs/`와 합치지 않는다. |
-| `docs/docs-index.html`, `docs/viewer.html` | 배포 제외, 원본 개발 저장소의 `docs/` 유지 | 개발 문서 탐색 UI이며 배포 문서의 필수 진입점은 아니다. |
-| `CONTEXT.md` | 배포 제외, 원본 개발 저장소에 유지 | 현 저장소의 용어집이며 현재 경로 설명에 구식 내용이 섞여 있다. |
+| `docs/docs-index.html`, `docs/viewer.html`, `CONTEXT.md` | 개발 저장소에서 제거 | 옛 파일 위치를 참조하는 문서 탐색 UI와 용어집이며 배포 문서의 필수 구성 요소가 아니다. |
 | `bin/migrate-harness-shared-data` | 배포 제외, 원본 개발 저장소의 `bin/` 유지 | 현재 저장소의 과거 worktree 데이터 이전용이다. 신규 설치에 사용하지 않는다. |
 | `bin/codex-last-turn-tokens`, `bin/token-cost-current.py`, `bin/token-cost-legacy.py`, `bin/token_cost_compare_common.py` | 배포 제외, 원본 개발 저장소의 `bin/` 유지 | 비용 분석·개발 보조 명령이다. |
 | `skills-lock.json` 및 아래에 이름을 열거한 나머지 `.agents/skills/<스킬명>/**` | 배포 제외, 원본 개발 저장소에 유지 | 외부 범용 스킬 설치 기록과 하네스 실행에 필요하지 않은 스킬이다. |
@@ -189,7 +188,7 @@ Git 공통 디렉터리의 공유 데이터 위치는 기존 멀티 worktree 설
 
 `codex-compass/vendor/`에는 기존 `vendor/`의 MemoryGraph와 ai-prd-workflow 원본을 일반 파일로 옮겨 둔다. 각 원본의 `LICENSE`·출처 고지는 유지하고 npm 패키지에도 포함한다. 실행 의존성 생성물인 `memory-graph/ts/node_modules/`와 Git 서브모듈 메타데이터는 배포 파일에서 제외한다. ai-prd-workflow는 참고 원본이며 설치된 하네스가 실행에 사용하지 않는다.
 
-`codex-compass/runtime/selections/`는 각 worktree에 생성되는 임시 파일이고, `state.db`·`memorygraph.db`·Binding·Review Plan은 위 트리의 Git 공통 디렉터리에만 둔다. 배치표에 남은 항목의 이동은 아직 수행하지 않았다.
+`codex-compass/runtime/selections/`는 각 worktree에 생성되는 임시 파일이고, `state.db`·`memorygraph.db`·Binding·Review Plan은 위 트리의 Git 공통 디렉터리에만 둔다. 배치표의 배포 경로 이전은 원본 저장소에 반영했다.
 
 배포하지 않는 스킬 디렉터리의 정확한 이름은 `ask-matt`, `code-review`, `codebase-design`, `diagnosing-bugs`, `domain-modeling`, `grill-me`, `grill-with-docs`, `grilling`, `handoff`, `implement`, `improve-codebase-architecture`, `prototype`, `research`, `resolving-merge-conflicts`, `setup-matt-pocock-skills`, `tdd`, `teach`, `to-questionnaire`, `to-spec`, `to-tickets`, `triage`, `wait-what`, `wayfinder`, `wizard`, `writing-for-agents`다. 각 디렉터리의 `SKILL.md`, 보조 문서, 스크립트, `agents/openai.yaml`도 같은 처리 대상이다.
 
@@ -275,7 +274,7 @@ Git 공통 디렉터리의 공유 데이터 위치는 기존 멀티 worktree 설
 
 ### 스킬 최초 설치와 같은 버전의 재실행
 
-필수 스킬과 선택 스킬의 범위는 위 배치표를 따른다. 최초 설치에서 대상 `.agents/skills/<스킬명>/`이 이미 있으면 기존 스킬을 덮어쓰지 않고 이름 충돌을 알린다. 같은 버전의 `install` 재실행은 버전만 확인하고 종료하므로 스킬의 내용이나 존재 여부도 검사하지 않는다. 새 버전의 `update`에서만 위의 사전 검사를 수행한다.
+기본 설치 스킬 7개의 범위는 위 배치표를 따른다. 최초 설치에서 대상 `.agents/skills/<스킬명>/`이 이미 있으면 기존 스킬을 덮어쓰지 않고 이름 충돌을 알린다. 같은 버전의 `install` 재실행은 버전만 확인하고 종료하므로 스킬의 내용이나 존재 여부도 검사하지 않는다. 새 버전의 `update`에서만 위의 사전 검사를 수행한다.
 
 ### Codex 훅 설치 규칙
 

@@ -140,7 +140,7 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertEqual(entry["next_action"], "두 번째 단계 수행")
 
     def test_sidebar_toggle_uses_a_persisted_desktop_icon_rail(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
 
@@ -152,7 +152,7 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertIn(".sidebar-toggle {", styles)
 
     def test_font_scale_stepper_uses_five_persisted_levels(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
 
@@ -282,7 +282,7 @@ class ControlCenterApiTests(unittest.TestCase):
         self.assertNotIn('id="overview-graph"', response.text)
 
     def test_memo_markdown_renderer_preserves_nested_list_depth(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        app_js = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/app.js"
         script = """
 const fs = require("fs");
 const vm = require("vm");
@@ -309,7 +309,7 @@ process.stdout.write(context.renderMarkdown("- parent\\n  - child"));
         )
 
     def test_memo_editor_guards_unsaved_changes_and_persists_browser_drafts(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         index = (root / "index.html").read_text()
         styles = (root / "styles.css").read_text()
@@ -344,7 +344,7 @@ process.stdout.write(context.renderMarkdown("- parent\\n  - child"));
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
 
     def test_memo_markdown_renderer_preserves_single_newlines(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        app_js = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/app.js"
         script = """
 const fs = require("fs");
 const vm = require("vm");
@@ -371,7 +371,7 @@ process.stdout.write(context.renderMarkdown("first line\\n\\n\\nsecond line"));
         )
 
     def test_memo_markdown_renderer_preserves_plain_text_indentation(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        app_js = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/app.js"
         script = """
 const fs = require("fs");
 const vm = require("vm");
@@ -398,7 +398,7 @@ process.stdout.write(context.renderMarkdown("plain\\n  two spaces\\n\\ttab inden
         )
 
     def test_memo_markdown_renderer_supports_alpha_ordered_lists(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
+        app_js = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/app.js"
         script = """
 const fs = require("fs");
 const vm = require("vm");
@@ -851,7 +851,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertEqual(response.json()["error"]["code"], "not_found")
 
     def test_work_item_detail_ui_renders_expandable_evidence_rows(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
 
@@ -864,7 +864,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertIn("evidence-card", styles)
 
     def test_work_item_layout_gives_detail_panel_sixty_percent_of_content_width(self) -> None:
-        styles = (Path(__file__).parents[1] / "src/harness/control_center/static/styles.css").read_text()
+        styles = (Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/styles.css").read_text()
 
         self.assertIn(
             "grid-template-columns: 220px minmax(0, 2fr) minmax(0, 3fr);",
@@ -876,7 +876,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         )
 
     def test_memo_header_is_the_expand_toggle(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
 
@@ -973,7 +973,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertEqual(response.json()["error"]["message"], "요청한 대상을 찾을 수 없습니다.")
 
     def test_runs_ui_uses_hourglass_without_live_duration_timer(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
         index = (root / "index.html").read_text()
@@ -994,8 +994,8 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertIn("padding: 0 14px", styles)
 
     def test_work_item_run_cards_link_to_the_runs_view_and_focus_the_run(self) -> None:
-        app_js = Path(__file__).parents[1] / "src/harness/control_center/static/app.js"
-        styles = Path(__file__).parents[1] / "src/harness/control_center/static/styles.css"
+        app_js = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/app.js"
+        styles = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/styles.css"
         source = app_js.read_text()
         style_source = styles.read_text()
 
@@ -1006,7 +1006,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertIn(".run-card-link", style_source)
 
     def test_runs_rows_use_a_chevron_instead_of_an_action_column(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         app_js = (root / "app.js").read_text()
         styles = (root / "styles.css").read_text()
         index = (root / "index.html").read_text()
@@ -1018,7 +1018,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertNotIn(">Actions<", index)
 
     def test_run_status_colors_separate_running_and_interrupted_from_success_and_failure(self) -> None:
-        styles = (Path(__file__).parents[1] / "src/harness/control_center/static/styles.css").read_text()
+        styles = (Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static/styles.css").read_text()
 
         self.assertIn(".run-status-running { border-color: #b8c5f1; background: #e5e9ff; color: #4358c7; }", styles)
         self.assertIn(".run-status-interrupted { border-color: #e6cfaa; background: var(--amber-pale); color: var(--amber); }", styles)
@@ -1026,7 +1026,7 @@ process.stdout.write(context.renderMarkdown("A. alpha\\nB. beta\\na) lower alpha
         self.assertNotIn(".run-status-failed, .run-status-interrupted", styles)
 
     def test_activity_timeline_menu_opens_a_coming_soon_page(self) -> None:
-        root = Path(__file__).parents[1] / "src/harness/control_center/static"
+        root = Path(__file__).parents[1] / "codex-compass/src/harness/control_center/static"
         index = (root / "index.html").read_text()
         app_js = (root / "app.js").read_text()
 

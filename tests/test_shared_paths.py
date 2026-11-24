@@ -26,7 +26,7 @@ class SharedPathsTests(unittest.TestCase):
         )
         self.assertEqual(
             _selection_directory(database),
-            state_store.PROJECT_ROOT / ".harness" / "runtime" / "selections",
+            state_store.HARNESS_ROOT / "runtime" / "selections",
         )
 
     def test_conflicting_state_environment_values_are_rejected(self):

@@ -49,7 +49,7 @@ else:
 """
 
 MEMORY_PROGRAM = r"""
-import { openMemoryFinalizeClient, resolveMemoryDatabasePath } from "./src/harness/memory/client.ts";
+import { openMemoryFinalizeClient, resolveMemoryDatabasePath } from "./codex-compass/src/harness/memory/client.ts";
 
 const [action, projectRoot, memoryId] = process.argv.slice(2);
 const database = resolveMemoryDatabasePath(projectRoot);
@@ -80,21 +80,19 @@ class SharedWorktreeIntegrationTests(unittest.TestCase):
         self.primary = root / "primary"
         self.secondary = root / "secondary"
         self.primary.mkdir()
-        (self.primary / "src").mkdir()
-        shutil.copy2(PROJECT_ROOT / "src" / "__init__.py", self.primary / "src" / "__init__.py")
+        harness = self.primary / "codex-compass"
+        harness.mkdir()
         shutil.copytree(
-            PROJECT_ROOT / "src" / "harness", self.primary / "src" / "harness",
+            PROJECT_ROOT / "codex-compass" / "src", harness / "src",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
         shutil.copytree(
             PROJECT_ROOT / "codex-compass" / "vendor" / "memory-graph" / "ts" / "src",
-            self.primary / "codex-compass" / "vendor" / "memory-graph" / "ts" / "src",
-            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            harness / "vendor" / "memory-graph" / "ts" / "src",
         )
-        (self.primary / ".harness").mkdir()
-        shutil.copy2(PROJECT_ROOT / ".harness" / "schema.sql", self.primary / ".harness" / "schema.sql")
+        shutil.copy2(PROJECT_ROOT / "codex-compass" / "schema.sql", harness / "schema.sql")
         self._git("init", "-q", str(self.primary))
-        self._git("-C", str(self.primary), "add", "src", "codex-compass/vendor/memory-graph/ts/src", ".harness/schema.sql")
+        self._git("-C", str(self.primary), "add", "codex-compass/src", "codex-compass/vendor/memory-graph/ts/src", "codex-compass/schema.sql")
         self._git("-C", str(self.primary), "-c", "user.name=Harness Test",
                   "-c", "user.email=harness-test@example.invalid", "commit", "-qm", "fixture")
         self._git("-C", str(self.primary), "worktree", "add", "-q", "-b", "secondary",
@@ -112,7 +110,7 @@ class SharedWorktreeIntegrationTests(unittest.TestCase):
 
     def _state(self, worktree: Path, action: str, *arguments: str) -> dict[str, str]:
         environment = os.environ.copy()
-        environment["PYTHONPATH"] = str(worktree)
+        environment["PYTHONPATH"] = str(worktree / "codex-compass")
         environment.pop("HARNESS_STATE_DB", None)
         environment.pop("HARNESS_STATE_DATABASE", None)
         result = subprocess.run(

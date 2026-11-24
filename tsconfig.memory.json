@@ -11,7 +11,7 @@
     "typeRoots": ["./codex-compass/vendor/memory-graph/ts/node_modules/@types"]
   },
   "include": [
-    "src/harness/memory/**/*.ts",
+    "codex-compass/src/harness/memory/**/*.ts",
     "tests/memory/**/*.ts"
   ]
 }
