@@ -1,0 +1,7 @@
+.venv/
+**/.venv/
+**/node_modules/
+runtime/
+**/__pycache__/
+**/*.py[cod]
+**/.DS_Store

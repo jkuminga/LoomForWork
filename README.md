@@ -203,7 +203,7 @@ bunx codex-compass-harness@latest update
 
 ## ⚖️ 라이선스
 
-이 저장소는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
+이 저장소는 MIT 라이선스를 따릅니다. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요. 설치된 하네스에도 [codex-compass/LICENSE](codex-compass/LICENSE)가 함께 들어갑니다.
 
 하네스에 포함된 외부 소스와 이를 바탕으로 구성한 스킬의 라이선스 및 출처는 다음 파일에서 확인할 수 있습니다.
 

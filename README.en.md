@@ -224,7 +224,7 @@ You may customize the Codex Compass harness files and skills. If you modify file
 
 ## ⚖️ License
 
-This repository is licensed under MIT. See [LICENSE](LICENSE) for details.
+This repository is licensed under MIT. See [LICENSE](LICENSE) for details. The installed harness also includes [codex-compass/LICENSE](codex-compass/LICENSE).
 
 The licenses and origins of bundled external sources and the skills based on them are recorded here:
 
