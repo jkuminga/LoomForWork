@@ -1,7 +1,7 @@
 <div align="center">
 
 # Codex Compass
-![Codex Compass 메인 이미지](../../assets/readme-hero-image.png)
+![Codex Compass 메인 이미지](assets/readme-hero-image.png)
 
 할 일을 정하고, 실행을 기록하고, 배운 것을 다음 작업으로 잇는 Codex 하네스
 
