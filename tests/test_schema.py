@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = PROJECT_ROOT / "codex-compass" / "schema.sql"
+SCHEMA_PATH = PROJECT_ROOT / "lfw" / "schema.sql"
 
 
 class StateStoreSchemaTests(unittest.TestCase):

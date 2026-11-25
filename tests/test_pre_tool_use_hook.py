@@ -220,7 +220,7 @@ class PreToolUseHookTests(unittest.TestCase):
         self.assertIn("pre_tool_use_failed:HookInputError", reason)
 
     def test_cli_invalid_json_fails_closed_with_exit_zero(self) -> None:
-        command = Path(__file__).resolve().parents[1] / "codex-compass" / "bin" / "harness-pre-tool-use"
+        command = Path(__file__).resolve().parents[1] / "lfw" / "bin" / "harness-pre-tool-use"
         completed = subprocess.run(
             [str(command)],
             input="not-json",
@@ -238,7 +238,7 @@ class PreToolUseHookTests(unittest.TestCase):
         (self.bindings_directory / "session-current.json").write_text(
             "not-json", encoding="utf-8"
         )
-        command = Path(__file__).resolve().parents[1] / "codex-compass" / "bin" / "harness-pre-tool-use"
+        command = Path(__file__).resolve().parents[1] / "lfw" / "bin" / "harness-pre-tool-use"
         environment = os.environ.copy()
         environment.update(
             {
@@ -265,7 +265,7 @@ class PreToolUseHookTests(unittest.TestCase):
         self.assertIn("active_binding_invalid:RuntimeBindingError", reason)
 
     def test_cli_read_only_allow_has_empty_stdout(self) -> None:
-        command = Path(__file__).resolve().parents[1] / "codex-compass" / "bin" / "harness-pre-tool-use"
+        command = Path(__file__).resolve().parents[1] / "lfw" / "bin" / "harness-pre-tool-use"
         completed = subprocess.run(
             [str(command)],
             input=json.dumps(self.event("Bash", {"command": "git status"})),

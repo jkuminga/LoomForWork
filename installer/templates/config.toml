@@ -1,7 +1,7 @@
 [mcp_servers.harness-state]
 command = "uv"
 args = ["run", "python", "-m", "src.harness.mcp_server"]
-cwd = "__CODEX_COMPASS_CWD__"
+cwd = "__LFW_CWD__"
 required = true
 startup_timeout_sec = 20
 tool_timeout_sec = 30
@@ -21,7 +21,7 @@ enabled_tools = [
 [mcp_servers.harness-memory]
 command = "uv"
 args = ["run", "python", "-m", "src.harness.memory_mcp_server"]
-cwd = "__CODEX_COMPASS_CWD__"
+cwd = "__LFW_CWD__"
 required = true
 startup_timeout_sec = 20
 tool_timeout_sec = 30

@@ -8,10 +8,10 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "types": ["bun"],
-    "typeRoots": ["./codex-compass/vendor/memory-graph/ts/node_modules/@types"]
+    "typeRoots": ["./lfw/vendor/memory-graph/ts/node_modules/@types"]
   },
   "include": [
-    "codex-compass/src/harness/memory/**/*.ts",
+    "lfw/src/harness/memory/**/*.ts",
     "tests/memory/**/*.ts"
   ]
 }

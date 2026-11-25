@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Check that the files recorded by the installer still exist."""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[2]
+    record_path = root / "lfw/install.json"
+    missing = []
+
+    if not record_path.is_file():
+        print(f"설치 기록이 없습니다: {record_path}", file=sys.stderr)
+        return 1
+
+    try:
+        record = json.loads(record_path.read_text())
+        managed = record["managed_files"]
+        skills = record["installed_skills"]
+        integrations = record["integrations"]
+        if not isinstance(managed, dict) or not isinstance(skills, dict) or not isinstance(integrations, list):
+            raise ValueError("설치 기록의 파일 목록 형식이 잘못되었습니다")
+    except (OSError, json.JSONDecodeError, KeyError, ValueError) as error:
+        print(f"설치 기록을 읽을 수 없습니다: {error}", file=sys.stderr)
+        return 1
+
+    for relative in managed:
+        if not (root / "lfw" / relative).is_file():
+            missing.append(f"lfw/{relative}")
+    for skill in skills:
+        if not (root / ".agents/skills" / skill / "SKILL.md").is_file():
+            missing.append(f".agents/skills/{skill}/SKILL.md")
+    for relative in integrations:
+        if not (root / relative).is_file():
+            missing.append(relative)
+
+    git = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True, check=False,
+    )
+    if git.returncode != 0:
+        print("Git 공통 디렉터리를 찾을 수 없습니다.", file=sys.stderr)
+        return 1
+    common = Path(git.stdout.strip())
+    for name in ("state.db", "memorygraph.db"):
+        if not (common / "harness-data" / name).is_file():
+            missing.append(f"{common}/harness-data/{name}")
+
+    if missing:
+        print("설치 확인 실패: 다음 파일이 없습니다.", file=sys.stderr)
+        for path in missing:
+            print(f"- {path}", file=sys.stderr)
+        return 1
+
+    print("설치 확인 완료: 필수 파일이 모두 있습니다.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

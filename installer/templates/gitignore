@@ -1,7 +1,7 @@
-# codex-compass:start
-/codex-compass/.venv/
-/codex-compass/**/node_modules/
-/codex-compass/runtime/selections/
-/codex-compass/**/__pycache__/
-/codex-compass/**/*.py[cod]
-# codex-compass:end
+# lfw:start
+/lfw/.venv/
+/lfw/**/node_modules/
+/lfw/runtime/selections/
+/lfw/**/__pycache__/
+/lfw/**/*.py[cod]
+# lfw:end

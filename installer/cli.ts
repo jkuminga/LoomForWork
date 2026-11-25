@@ -17,15 +17,15 @@ type InstallRecord = {
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectRoot = resolve(process.cwd());
-const harnessSource = join(packageRoot, "codex-compass");
-const harnessTarget = join(projectRoot, "codex-compass");
+const harnessSource = join(packageRoot, "lfw");
+const harnessTarget = join(projectRoot, "lfw");
 const recordPath = join(harnessTarget, "install.json");
 const requiredSkills = ["work-start", "work-finish", "memory-finalize", "work-item-create", "mvp-to-prd", "verify-prd", "extract-features"];
 const integrations = ["AGENTS.md", ".gitignore", ".codex/config.toml", ".codex/hooks.json", "package.json"];
 const projectScripts = {
-  console: "codex-compass/bin/harness-control-center",
-  "verify:install": "codex-compass/bin/harness-verify-install",
-  "worktree:setup": "codex-compass/bin/harness-configure-worktree",
+  console: "lfw/bin/harness-control-center",
+  "verify:install": "lfw/bin/harness-verify-install",
+  "worktree:setup": "lfw/bin/harness-configure-worktree",
 };
 const excludedNames = new Set([".DS_Store", ".venv", "node_modules", "__pycache__", "runtime", "install.json"]);
 
@@ -132,7 +132,7 @@ function mergeConfig(original: string): string {
   }
   const cwd = JSON.stringify(harnessTarget);
   const template = read(join(packageRoot, "installer/templates/config.toml"))
-    .replaceAll('"__CODEX_COMPASS_CWD__"', cwd);
+    .replaceAll('"__LFW_CWD__"', cwd);
   const merged = `${original.trimEnd()}${original.trim() ? "\n\n" : ""}${template}`;
   Bun.TOML.parse(merged);
   return merged;
@@ -159,7 +159,7 @@ function sharedFiles(): Map<string, string> {
   const hooks = join(projectRoot, ".codex/hooks.json");
   const config = join(projectRoot, ".codex/config.toml");
   result.set(agents, mergeMarked(existsSync(agents) ? read(agents) : "", read(join(packageRoot, "AGENTS.md")),
-    "<!-- codex-compass:start -->", "<!-- codex-compass:end -->", agents));
+    "<!-- lfw:start -->", "<!-- lfw:end -->", agents));
   const ignoreTemplate = read(join(packageRoot, "installer/templates/gitignore"));
   const [start, ...rest] = ignoreTemplate.trimEnd().split("\n");
   const end = rest.pop()!;
@@ -203,7 +203,7 @@ function install(): void {
   const nextVersion = version();
   if (current) {
     if (current.harness_version === nextVersion) { console.log(`하네스 ${nextVersion}이 이미 설치되어 있습니다.`); return; }
-    console.log(`설치 버전 ${current.harness_version}, 패키지 버전 ${nextVersion}. 업데이트하려면 bunx codex-compass-harness@latest update를 실행하세요.`);
+    console.log(`설치 버전 ${current.harness_version}, 패키지 버전 ${nextVersion}. 업데이트하려면 bunx loomforwork@latest update를 실행하세요.`);
     return;
   }
   checkPrerequisites();
@@ -217,8 +217,8 @@ function install(): void {
     fail("상위 Git 저장소 안에서는 설치할 수 없습니다. 대상 프로젝트 루트에 설치하세요.");
   }
   if (rootExists) gitCommonDirectory();
-  const stage = mkdtempSync(join(tmpdir(), "codex-compass-install-"));
-  const stagedHarness = join(stage, "codex-compass");
+  const stage = mkdtempSync(join(tmpdir(), "lfw-install-"));
+  const stagedHarness = join(stage, "lfw");
   const backups = new Map<string, string>();
   const createdPaths: string[] = [];
   let createdGit = false;
@@ -298,7 +298,7 @@ function update(): void {
   for (const [path, expected] of Object.entries(previous.managed_files)) {
     const target = resolve(harnessTarget, path);
     if (!target.startsWith(`${harnessTarget}/`) || !existsSync(target) || hash(target) !== expected) {
-      fail(`수정되었거나 없는 하네스 파일로 인해 업데이트를 중단합니다: codex-compass/${path}`);
+      fail(`수정되었거나 없는 하네스 파일로 인해 업데이트를 중단합니다: lfw/${path}`);
     }
   }
   for (const [name, expected] of Object.entries(previous.installed_skills)) {
@@ -307,9 +307,9 @@ function update(): void {
       fail(`수정되었거나 없는 스킬로 인해 업데이트를 중단합니다: ${name}`);
     }
   }
-  const stage = mkdtempSync(join(tmpdir(), "codex-compass-update-"));
-  const stagedHarness = join(stage, "codex-compass");
-  const oldHarness = join(stage, "previous-codex-compass");
+  const stage = mkdtempSync(join(tmpdir(), "lfw-update-"));
+  const stagedHarness = join(stage, "lfw");
+  const oldHarness = join(stage, "previous-lfw");
   const oldSkills = join(stage, "previous-skills");
   const skillRoot = join(projectRoot, ".agents/skills");
   let applied = false;
@@ -374,8 +374,8 @@ const command = process.argv[2];
 try {
   if (command === "install") install();
   else if (command === "update") update();
-  else fail("사용법: codex-compass-harness install | update");
+  else fail("사용법: loomforwork install | update");
 } catch (error) {
-  console.error(`[codex-compass] ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`[lfw] ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 }

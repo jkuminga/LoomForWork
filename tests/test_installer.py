@@ -14,7 +14,7 @@ CLI = Path(__file__).resolve().parents[1] / "installer" / "cli.ts"
 @unittest.skipUnless(shutil.which("bun") and shutil.which("uv") and shutil.which("fzf"), "installer prerequisites")
 class InstallerTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="codex-compass-installer-test-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="lfw-installer-test-")
         self.addCleanup(self.temporary.cleanup)
         self.project = Path(self.temporary.name)
 
@@ -42,15 +42,15 @@ class InstallerTests(unittest.TestCase):
         package = json.loads((self.project / "package.json").read_text())
         self.assertEqual(package["name"], "existing-project")
         self.assertEqual(package["scripts"]["test"], "echo existing")
-        self.assertEqual(package["scripts"]["console"], "codex-compass/bin/harness-control-center")
-        self.assertEqual(package["scripts"]["verify:install"], "codex-compass/bin/harness-verify-install")
-        self.assertEqual(package["scripts"]["worktree:setup"], "codex-compass/bin/harness-configure-worktree")
-        self.assertTrue((self.project / "codex-compass/install.json").exists())
+        self.assertEqual(package["scripts"]["console"], "lfw/bin/harness-control-center")
+        self.assertEqual(package["scripts"]["verify:install"], "lfw/bin/harness-verify-install")
+        self.assertEqual(package["scripts"]["worktree:setup"], "lfw/bin/harness-configure-worktree")
+        self.assertTrue((self.project / "lfw/install.json").exists())
         self.assertTrue((self.project / ".agents/skills/extract-features/SKILL.md").is_file())
-        record = json.loads((self.project / "codex-compass/install.json").read_text())
+        record = json.loads((self.project / "lfw/install.json").read_text())
         self.assertIn("extract-features", record["installed_skills"])
         verify = subprocess.run(
-            ["python3", "codex-compass/bin/harness-verify-install"],
+            ["python3", "lfw/bin/harness-verify-install"],
             cwd=self.project, capture_output=True, text=True,
         )
         self.assertEqual(verify.returncode, 0, verify.stderr)
@@ -62,7 +62,7 @@ class InstallerTests(unittest.TestCase):
 
         (self.project / ".codex/hooks.json").unlink()
         verify_missing = subprocess.run(
-            ["python3", "codex-compass/bin/harness-verify-install"],
+            ["python3", "lfw/bin/harness-verify-install"],
             cwd=self.project, capture_output=True, text=True,
         )
         self.assertNotEqual(verify_missing.returncode, 0)
@@ -76,25 +76,25 @@ class InstallerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("이미 다른 console 스크립트", result.stderr)
         self.assertEqual((self.project / "package.json").read_text(), original)
-        self.assertFalse((self.project / "codex-compass").exists())
+        self.assertFalse((self.project / "lfw").exists())
 
     def test_new_project_gets_package_scripts(self) -> None:
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
         package = json.loads((self.project / "package.json").read_text())
-        self.assertEqual(package["scripts"]["console"], "codex-compass/bin/harness-control-center")
-        self.assertEqual(package["scripts"]["verify:install"], "codex-compass/bin/harness-verify-install")
-        self.assertEqual(package["scripts"]["worktree:setup"], "codex-compass/bin/harness-configure-worktree")
-        self.assertTrue((self.project / "codex-compass/tests/test_configure_worktree.py").is_file())
+        self.assertEqual(package["scripts"]["console"], "lfw/bin/harness-control-center")
+        self.assertEqual(package["scripts"]["verify:install"], "lfw/bin/harness-verify-install")
+        self.assertEqual(package["scripts"]["worktree:setup"], "lfw/bin/harness-configure-worktree")
+        self.assertTrue((self.project / "lfw/tests/test_configure_worktree.py").is_file())
         console_help = subprocess.run(["bun", "run", "console", "--help"], cwd=self.project, capture_output=True, text=True)
         self.assertEqual(console_help.returncode, 0, console_help.stderr)
         verify_command = subprocess.run(["bun", "run", "verify:install"], cwd=self.project, capture_output=True, text=True)
         self.assertEqual(verify_command.returncode, 0, verify_command.stderr)
         config = self.project / ".codex/config.toml"
-        config.write_text(config.read_text().replace(str(self.project / "codex-compass"), "/old/worktree/codex-compass"))
+        config.write_text(config.read_text().replace(str(self.project / "lfw"), "/old/worktree/lfw"))
         worktree_command = subprocess.run(["bun", "run", "worktree:setup"], cwd=self.project, capture_output=True, text=True)
         self.assertEqual(worktree_command.returncode, 0, worktree_command.stderr)
-        expected_cwd = self.project.resolve() / "codex-compass"
+        expected_cwd = self.project.resolve() / "lfw"
         self.assertEqual(config.read_text().count(f'cwd = "{expected_cwd}"'), 2)
         self.assertTrue((self.project / ".git").is_dir())
 
@@ -108,7 +108,7 @@ class InstallerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("이미 있습니다", result.stderr)
         self.assertEqual((codex / "config.toml").read_text(), original)
-        self.assertFalse((self.project / "codex-compass").exists())
+        self.assertFalse((self.project / "lfw").exists())
         self.assertFalse((self.project / ".git").exists())
 
 

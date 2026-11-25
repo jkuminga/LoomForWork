@@ -85,7 +85,7 @@ class MemoryGraphTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/memory-graph").status_code, 503)
 
     def test_layout_is_finite_repeatable_and_spaced(self):
-        source = Path("codex-compass/src/harness/control_center/static/memory-graph.js").read_text().split("(() => {")[0]
+        source = Path("lfw/src/harness/control_center/static/memory-graph.js").read_text().split("(() => {")[0]
         script = source + """
         const nodes = Array.from({length:100},(_,i)=>({id:String(i)}));
         const edges = nodes.slice(1).map(n=>({from_id:'0',to_id:n.id}));

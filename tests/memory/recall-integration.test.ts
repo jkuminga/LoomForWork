@@ -3,16 +3,16 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { SQLiteBackend } from "../../codex-compass/vendor/memory-graph/ts/src/backends/sqlite.ts";
-import { createMemory } from "../../codex-compass/vendor/memory-graph/ts/src/models.ts";
+import { SQLiteBackend } from "../../lfw/vendor/memory-graph/ts/src/backends/sqlite.ts";
+import { createMemory } from "../../lfw/vendor/memory-graph/ts/src/models.ts";
 import {
   openMemoryInspectClient,
   openMemoryFinalizeClient,
   openMemorySearchClient,
-} from "../../codex-compass/src/harness/memory/client.ts";
-import { inspectMemoryCandidate } from "../../codex-compass/src/harness/memory/inspect.ts";
-import { finalizeMemoryCandidate } from "../../codex-compass/src/harness/memory/finalize.ts";
-import { recallMemories } from "../../codex-compass/src/harness/memory/recall.ts";
+} from "../../lfw/src/harness/memory/client.ts";
+import { inspectMemoryCandidate } from "../../lfw/src/harness/memory/inspect.ts";
+import { finalizeMemoryCandidate } from "../../lfw/src/harness/memory/finalize.ts";
+import { recallMemories } from "../../lfw/src/harness/memory/recall.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -169,7 +169,7 @@ describe("MemoryGraph SQLite integration", () => {
 
     const projectRoot = resolve(import.meta.dir, "../..");
     const child = Bun.spawn(
-      [join(projectRoot, "codex-compass/bin/harness-memory"), "recall", "wrapper sqlite", "--limit", "3"],
+      [join(projectRoot, "lfw/bin/harness-memory"), "recall", "wrapper sqlite", "--limit", "3"],
       {
         cwd: projectRoot,
         env: { ...process.env, HARNESS_MEMORY_DB_PATH: databasePath },
@@ -281,7 +281,7 @@ describe("MemoryGraph SQLite integration", () => {
     }
 
     const projectRoot = resolve(import.meta.dir, "../..");
-    const child = Bun.spawn([join(projectRoot, "codex-compass/bin/harness-memory"), "inspect"], {
+    const child = Bun.spawn([join(projectRoot, "lfw/bin/harness-memory"), "inspect"], {
       cwd: projectRoot,
       env: { ...process.env, HARNESS_MEMORY_DB_PATH: databasePath },
       stdin: "pipe",

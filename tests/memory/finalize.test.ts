@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { finalizeMemoryCandidate } from "../../codex-compass/src/harness/memory/finalize.ts";
+import { finalizeMemoryCandidate } from "../../lfw/src/harness/memory/finalize.ts";
 import type {
   FinalizeMemoryClient,
   FinalizeMemoryRequest,
   FinalizeStoredMemory,
-} from "../../codex-compass/src/harness/memory/types.ts";
+} from "../../lfw/src/harness/memory/types.ts";
 
 class FakeClient implements FinalizeMemoryClient {
   memories = new Map<string, FinalizeStoredMemory>();

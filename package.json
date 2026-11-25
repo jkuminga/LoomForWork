@@ -1,28 +1,29 @@
 {
-  "name": "codex-compass-harness",
+  "name": "loomforwork",
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
   "type": "module",
   "bin": {
-    "codex-compass-harness": "installer/cli.ts"
+    "loomforwork": "installer/cli.ts"
   },
   "files": [
     "installer/",
-    "codex-compass/",
-    "assets/",
+    "lfw/",
+    "assets/loomforwork-hero.png",
+    "assets/loomforwork-logo.png",
     "AGENTS.md",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "console": "codex-compass/bin/harness-control-center",
-    "verify:install": "codex-compass/bin/harness-verify-install",
-    "worktree:setup": "codex-compass/bin/harness-configure-worktree",
-    "memory:setup": "bun install --cwd codex-compass/vendor/memory-graph/ts --frozen-lockfile",
-    "memory:recall": "bun run codex-compass/src/harness/memory/cli.ts",
-    "test:python": "PYTHONPATH=codex-compass uv run --project codex-compass --locked python -m unittest discover -s tests -q",
+    "console": "lfw/bin/harness-control-center",
+    "verify:install": "lfw/bin/harness-verify-install",
+    "worktree:setup": "lfw/bin/harness-configure-worktree",
+    "memory:setup": "bun install --cwd lfw/vendor/memory-graph/ts --frozen-lockfile",
+    "memory:recall": "bun run lfw/src/harness/memory/cli.ts",
+    "test:python": "PYTHONPATH=lfw uv run --project lfw --locked python -m unittest discover -s tests -q",
     "test:memory": "bun test tests/memory",
-    "typecheck:memory": "codex-compass/vendor/memory-graph/ts/node_modules/.bin/tsc --noEmit -p tsconfig.memory.json"
+    "typecheck:memory": "lfw/vendor/memory-graph/ts/node_modules/.bin/tsc --noEmit -p tsconfig.memory.json"
   }
 }

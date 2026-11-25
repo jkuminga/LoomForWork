@@ -1,7 +1,7 @@
 [mcp_servers.harness-state]
 command = "uv"
 args = ["run", "python", "-m", "src.harness.mcp_server"]
-cwd = "/Users/dohyeonjik/Desktop/Projects/Harness_v2/codex-compass"
+cwd = "/Users/dohyeonjik/Desktop/Projects/Harness_v2/lfw"
 required = true
 startup_timeout_sec = 20
 tool_timeout_sec = 30
@@ -44,7 +44,7 @@ enabled_tools = [
 [mcp_servers.harness-memory]
 command = "uv"
 args = ["run", "python", "-m", "src.harness.memory_mcp_server"]
-cwd = "/Users/dohyeonjik/Desktop/Projects/Harness_v2/codex-compass"
+cwd = "/Users/dohyeonjik/Desktop/Projects/Harness_v2/lfw"
 required = true
 startup_timeout_sec = 20
 tool_timeout_sec = 30

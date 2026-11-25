@@ -150,7 +150,7 @@ class StopHookTests(unittest.TestCase):
 
     def test_cli_emits_block_decision_for_a_bound_running_run(self) -> None:
         self.start_bound_run()
-        command = Path(__file__).resolve().parents[1] / "codex-compass" / "bin" / "harness-stop"
+        command = Path(__file__).resolve().parents[1] / "lfw" / "bin" / "harness-stop"
         environment = os.environ.copy()
         environment["HARNESS_STATE_DATABASE"] = str(self.database_path)
         environment["HARNESS_BINDINGS_DIRECTORY"] = str(self.bindings_directory)
