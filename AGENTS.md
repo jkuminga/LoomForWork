@@ -31,7 +31,7 @@
 
 ## WorkItem 직접 등록
 
-- 사용자가 현재 대화의 내용을 바탕으로 완성 WorkItem(non-Draft WI)을 생성·등록·추가해 달라고 명시하면 `$work-item-create` 스킬을 실행한다. Draft 생성은 웹 콘솔 흐름을 사용한다. 이 요청은 미래 작업 등록으로 끝내며 `w/` 선택과 Run 시작은 하지 않는다.
+- 사용자가 Draft WI 생성을 명시하면 `create_draft_work_item()` MCP 도구로 등록한다. 완성 WI(non-Draft WI)의 생성·등록·추가는 `$work-item-create` 스킬을 사용한다. 두 요청 모두 미래 작업 등록으로 끝내며 `w/` 선택과 Run 시작은 하지 않는다.
 
 ## WorkItem 완료
 
