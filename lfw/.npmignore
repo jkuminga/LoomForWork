@@ -1,7 +1,14 @@
-.venv/
-**/.venv/
+# Local state, secrets, caches, and installed dependencies under lfw/.
+**/.env
+**/.env.*
+**/.harness/
 **/node_modules/
-runtime/
+**/.venv/
 **/__pycache__/
 **/*.py[cod]
+**/*.db
+**/*.db-shm
+**/*.db-wal
 **/.DS_Store
+runtime/selections/
+tests/

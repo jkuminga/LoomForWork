@@ -1,0 +1,35 @@
+# Retain these sources in Git, but exclude them from the LoomForWork npm tarball.
+.github/
+AGENTS.md
+CLAUDE.md
+.env.example
+CHANGELOG.md
+README.md
+RELEASE_NOTES.md
+docs/
+examples/
+sdk/
+ts/Dockerfile
+ts/tsconfig.json
+ts/tests/
+
+# LoomForWork imports only the SQLite backend, config, models, and errors.
+ts/src/analytics/
+ts/src/integration/
+ts/src/intelligence/
+ts/src/migration/
+ts/src/proactive/
+ts/src/sdk/
+ts/src/tools/
+ts/src/utils/
+ts/src/backends/bolt-shared.ts
+ts/src/backends/cloud.ts
+ts/src/backends/factory.ts
+ts/src/backends/falkordb-shared.ts
+ts/src/backends/falkordb.ts
+ts/src/backends/falkordblite.ts
+ts/src/backends/index.ts
+ts/src/backends/memgraph.ts
+ts/src/cli.ts
+ts/src/database.ts
+ts/src/index.ts

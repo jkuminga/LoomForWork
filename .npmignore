@@ -1,0 +1,16 @@
+# Keep local data out if the package allowlist is widened. Recursive lfw/ rules live
+# in lfw/.npmignore because package.json explicitly includes that directory.
+**/.env
+**/.env.*
+**/.harness/
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.DS_Store
+lfw/runtime/selections/
+.playwright-cli/
+output/playwright/

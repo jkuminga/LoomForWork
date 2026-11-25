@@ -119,7 +119,7 @@ LoomForWork는 프로젝트 작업을 Feature, WorkItem(WI), Run 세 단위로 �
 프로젝트에 사용할 Feature와 WorkItem은 다음 두 가지 방법으로 만들 수 있습니다.
 
 #### 1.1 스킬을 활용하여 생성
-LoomForWork에는 기획 문서를 바탕으로 Feature와 WI를 준비하는 스킬이 포함되어 있습니다. 이 스킬들은 [ai-prd-workflow](https://github.com/nurettincoban/ai-prd-workflow) 저장소의 스킬을 바탕으로 구성했습니다.
+LoomForWork에는 기획 문서를 바탕으로 Feature와 WI를 준비하는 스킬이 포함되어 있습니다. 이 스킬들의 기반이 된 원본과 변경 내역은 [출처 기록](lfw/skills/UPSTREAM.md)에서 확인할 수 있습니다.
 
 PRD(제품 요구 사항 문서)가 있다면 `extract-features` 스킬로 Feature와 각 Feature에 속할 WI 후보를 추출할 수 있습니다. 이 스킬은 등록할 Feature와 WI 후보를 JSON 파일로 만듭니다. 파일의 내용을 검토한 뒤 에이전트에게 등록을 요청하면, 선택한 항목을 실제 Feature와 WI로 저장할 수 있습니다.
 
@@ -207,6 +207,5 @@ bunx loomforwork@latest update
 
 하네스에 포함된 외부 소스와 이를 바탕으로 구성한 스킬의 라이선스 및 출처는 다음 파일에서 확인할 수 있습니다.
 
-- **ai-prd-workflow:** [라이선스](lfw/vendor/ai-prd-workflow/LICENSE) · [출처](lfw/vendor/ai-prd-workflow/UPSTREAM.md)
 - **MemoryGraph:** [라이선스](lfw/vendor/memory-graph/LICENSE) · [출처](lfw/vendor/memory-graph/UPSTREAM.md)
-- **기획 문서·Feature 추출 스킬:** [mvp-to-prd](lfw/skills/mvp-to-prd/LICENSE) · [verify-prd](lfw/skills/verify-prd/LICENSE) · [extract-features](lfw/skills/extract-features/LICENSE)
+- **기획 문서·Feature 추출 스킬:** [출처와 변경 내역](lfw/skills/UPSTREAM.md) · 라이선스 [mvp-to-prd](lfw/skills/mvp-to-prd/LICENSE) · [verify-prd](lfw/skills/verify-prd/LICENSE) · [extract-features](lfw/skills/extract-features/LICENSE)

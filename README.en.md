@@ -132,7 +132,7 @@ You can create Features and WIs in two ways.
 
 #### 1.1 Use the skills
 
-LoomForWork includes skills that prepare Features and WIs from planning documents. These skills are based on the [ai-prd-workflow](https://github.com/nurettincoban/ai-prd-workflow) repository.
+LoomForWork includes skills that prepare Features and WIs from planning documents. See the [source record](lfw/skills/UPSTREAM.md) for their upstream origins and local changes.
 
 If you have a PRD (product requirements document), use `extract-features` to produce candidate Features and WIs for each Feature. The skill writes the candidates to a JSON file. After reviewing the file, ask the agent to register the items you want to save as Features and WIs.
 
@@ -228,6 +228,5 @@ This repository is licensed under MIT. See [LICENSE](LICENSE) for details. The i
 
 The licenses and origins of bundled external sources and the skills based on them are recorded here:
 
-- **ai-prd-workflow:** [License](lfw/vendor/ai-prd-workflow/LICENSE) · [Upstream](lfw/vendor/ai-prd-workflow/UPSTREAM.md)
 - **MemoryGraph:** [License](lfw/vendor/memory-graph/LICENSE) · [Upstream](lfw/vendor/memory-graph/UPSTREAM.md)
-- **Planning and Feature extraction skills:** [mvp-to-prd](lfw/skills/mvp-to-prd/LICENSE) · [verify-prd](lfw/skills/verify-prd/LICENSE) · [extract-features](lfw/skills/extract-features/LICENSE)
+- **Planning and Feature extraction skills:** [Source and changes](lfw/skills/UPSTREAM.md) · licenses: [mvp-to-prd](lfw/skills/mvp-to-prd/LICENSE) · [verify-prd](lfw/skills/verify-prd/LICENSE) · [extract-features](lfw/skills/extract-features/LICENSE)

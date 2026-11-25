@@ -1,9 +1,33 @@
 {
   "name": "loomforwork",
   "version": "0.1.0",
+  "description": "A Codex harness for managing project work, runs, and reusable memory.",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jkuminga/LoomForWork.git"
+  },
+  "homepage": "https://github.com/jkuminga/LoomForWork#readme",
+  "bugs": {
+    "url": "https://github.com/jkuminga/LoomForWork/issues"
+  },
+  "keywords": [
+    "codex",
+    "harness",
+    "work-items",
+    "mcp",
+    "agent-workflow",
+    "memory",
+    "worktree"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
   "bin": {
     "loomforwork": "installer/cli.ts"
   },
