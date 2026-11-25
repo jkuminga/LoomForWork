@@ -736,6 +736,7 @@ class StateStoreMCPTests(unittest.IsolatedAsyncioTestCase):
             "get_project_status",
             "search_work_items",
             "get_work_context",
+            "create_work_item_memo",
             "get_postflight_status",
             "list_features",
             "create_feature",

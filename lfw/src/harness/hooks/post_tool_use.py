@@ -367,7 +367,10 @@ def record_general_tool_event(
     if not isinstance(tool_name, str) or not tool_name.strip():
         return None
     tool_name = tool_name.strip()
-    if tool_name.lower().startswith(HARNESS_MCP_TOOL_PREFIXES):
+    if (
+        tool_name.lower().startswith(HARNESS_MCP_TOOL_PREFIXES)
+        and tool_name.lower() != "mcp__harness_state__create_work_item_memo"
+    ):
         return None
     session_id = event.get("session_id")
     turn_id = event.get("turn_id")

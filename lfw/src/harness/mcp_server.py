@@ -66,6 +66,30 @@ def create_server(
             work_item_id, database_path=database_path
         )
 
+    @server.tool(name="create_work_item_memo")
+    def create_work_item_memo(
+        work_item_id: str,
+        title: str,
+        content: str,
+        kind: Literal["general", "decision", "problem", "idea", "question", "reference"] = "general",
+    ) -> dict[str, Any]:
+        """Add a memo to an existing WorkItem for future agent context.
+
+        Read get_work_context first to avoid repeating an existing memo.
+        The memo is visible to agents when that WorkItem is selected again.
+        """
+
+        return state_store.create_work_item_memo(
+            work_item_id,
+            title=title,
+            content=content,
+            kind=kind,
+            author="codex",
+            is_model_visible=True,
+            actor="codex",
+            database_path=database_path,
+        )
+
     @server.tool(name="search_work_items")
     def search_work_items(
         terms: list[str],

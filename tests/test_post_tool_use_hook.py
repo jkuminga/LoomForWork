@@ -238,6 +238,23 @@ class StartWorkPostToolUseHookTests(unittest.TestCase):
             [],
         )
 
+    def test_work_item_memo_tool_is_recorded(self) -> None:
+        database_path, run = self.active_run()
+        saved = post_tool_use.record_general_tool_event(
+            {
+                "session_id": "session-1",
+                "turn_id": "turn-7",
+                "tool_use_id": "memo-create-1",
+                "tool_name": "mcp__harness_state__create_work_item_memo",
+                "tool_input": {"work_item_id": run["work_item_id"], "title": "Next steps"},
+                "tool_response": {"isError": False, "content": []},
+            },
+            database_path=database_path,
+            bindings_directory=self.bindings_directory,
+        )
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved["tool_name"], "mcp__harness_state__create_work_item_memo")
+
     def test_harness_mcp_tools_are_excluded_but_external_mcp_is_recorded(self) -> None:
         database_path, run = self.active_run()
         tool_names = (
