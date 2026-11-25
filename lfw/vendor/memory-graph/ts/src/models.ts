@@ -108,7 +108,7 @@ export const MemoryContextSchema = z.object({
   timestamp: z.string().datetime().or(z.date()).default(() => new Date().toISOString()),
   session_id: z.string().nullish(),
   user_id: z.string().nullish(),
-  additional_metadata: z.record(z.unknown()).default({}),
+  additional_metadata: z.record(z.string(), z.unknown()).default({}),
   tenant_id: z.string().nullish(),
   team_id: z.string().nullish(),
   visibility: z.enum(VALID_VISIBILITY).default("project"),
@@ -137,8 +137,8 @@ export const MemorySchema = z.object({
   version: z.number().int().min(1).default(1),
   updated_by: z.string().nullish(),
   // Enriched fields
-  relationships: z.record(z.array(z.string())).nullish(),
-  match_info: z.record(z.unknown()).nullish(),
+  relationships: z.record(z.string(), z.array(z.string())).nullish(),
+  match_info: z.record(z.string(), z.unknown()).nullish(),
   context_summary: z.string().nullish(),
 });
 
@@ -167,7 +167,7 @@ export const RelationshipSchema = z.object({
   from_memory_id: z.string().min(1),
   to_memory_id: z.string().min(1),
   type: z.enum(ALL_RELATIONSHIP_TYPES as [string, ...string[]]),
-  properties: RelationshipPropertiesSchema.default({}),
+  properties: RelationshipPropertiesSchema.prefault({}),
   description: z.string().nullish(),
   bidirectional: z.boolean().default(false),
 });
@@ -214,16 +214,16 @@ export type PaginatedResult = z.infer<typeof PaginatedResultSchema>;
 export const MemoryGraphSchema = z.object({
   memories: z.array(MemorySchema),
   relationships: z.array(RelationshipSchema),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 });
 
 export type MemoryGraph = z.infer<typeof MemoryGraphSchema>;
 
 export const AnalysisResultSchema = z.object({
   analysis_type: z.string(),
-  results: z.record(z.unknown()),
+  results: z.record(z.string(), z.unknown()),
   confidence: z.number().min(0).max(1),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   created_at: z.string().datetime().or(z.date()).default(() => new Date().toISOString()),
 });
 

@@ -17,7 +17,7 @@
     "falkordb": "^6.0.0",
     "falkordblite": "^0.1.0",
     "neo4j-driver": "^6.2.0",
-    "zod": "^3.23.0"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bun": "latest",
