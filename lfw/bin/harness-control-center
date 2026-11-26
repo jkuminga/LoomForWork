@@ -3,6 +3,7 @@ set -eu
 
 script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 harness_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
+project_root=$(CDPATH= cd -- "$harness_root/.." && pwd -P)
 cd "$harness_root"
 
-exec uv run python -m src.harness.control_center.server "$@"
+exec uv run python -m src.harness.control_center.server --project-root "$project_root" "$@"

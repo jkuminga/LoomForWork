@@ -6,8 +6,11 @@ import argparse
 import errno
 import os
 import socket
+from pathlib import Path
 
 import uvicorn
+
+from .app import create_app
 
 
 HOST = "127.0.0.1"
@@ -32,6 +35,11 @@ def reserve_port(requested_port: int) -> tuple[socket.socket, bool]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local Harness Control Center")
     parser.add_argument("--port", type=int, default=int(os.environ.get("HARNESS_CONTROL_CENTER_PORT", DEFAULT_PORT)))
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        help="project directory whose name appears in the browser tab and console",
+    )
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
@@ -40,9 +48,10 @@ def main() -> None:
     actual_port = listener.getsockname()[1]
     if fallback:
         print(f"Port {args.port} is in use; using port {actual_port}.", flush=True)
-    print(f"Harness Control Center: http://{HOST}:{actual_port}", flush=True)
     try:
-        config = uvicorn.Config("src.harness.control_center.app:app", host=HOST, port=actual_port)
+        app = create_app(project_root=args.project_root)
+        print(f"Harness Control Center: http://{HOST}:{actual_port}", flush=True)
+        config = uvicorn.Config(app, host=HOST, port=actual_port)
         uvicorn.Server(config).run(sockets=[listener])
     finally:
         listener.close()

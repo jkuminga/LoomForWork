@@ -38,10 +38,12 @@ def _error_response(
 def create_app(
     database_path: str | Path | None = None,
     memory_database_path: str | Path | None = None,
+    project_root: str | Path | None = None,
 ) -> FastAPI:
-    """Create a local control-center app bound to one state-store database."""
+    """Create a control-center app with an optional project directory identity."""
 
     selected_database = Path(database_path) if database_path is not None else shared_paths.state_database_from_environment()
+    project_name = _project_directory_name(project_root)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -56,6 +58,7 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.database_path = selected_database
+    application.state.project_name = project_name
     application.state.memory_database_path = Path(memory_database_path or os.environ.get("HARNESS_MEMORY_DB_PATH") or selected_database.with_name("memorygraph.db"))
     application.include_router(create_memory_graph_router())
     application.include_router(create_features_router())
@@ -118,7 +121,27 @@ def create_app(
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
 
+    @application.get("/api/project-context")
+    def project_context() -> dict[str, str | None]:
+        """Return only the project directory name; the local path stays private."""
+
+        return {"project_name": application.state.project_name}
+
     return application
+
+
+def _project_directory_name(project_root: str | Path | None) -> str | None:
+    """Return a valid root directory's basename, or None when it is unknown."""
+
+    if project_root is None:
+        return None
+    try:
+        root = Path(project_root).expanduser()
+        if not root.is_absolute() or not root.is_dir():
+            return None
+        return root.name or None
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
 
 
 app = create_app()

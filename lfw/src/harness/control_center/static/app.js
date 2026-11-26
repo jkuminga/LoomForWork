@@ -129,6 +129,24 @@ function readSidebarPreference() {
   }
 }
 
+async function loadProjectIdentity() {
+  try {
+    const response = await fetch("/api/project-context", { headers: { Accept: "application/json" } });
+    if (!response.ok) return;
+    const context = await response.json();
+    const projectName = typeof context.project_name === "string" ? context.project_name.trim() : "";
+    if (!projectName) return;
+
+    const nameElement = document.querySelector("#project-name");
+    nameElement.textContent = projectName;
+    nameElement.title = projectName;
+    document.querySelector("#project-identity").classList.remove("hidden");
+    document.title = `LoomForWork · ${projectName}`;
+  } catch (_) {
+    // Keep the generic title and hide the indicator when identity is unavailable.
+  }
+}
+
 function setSidebarCollapsed(collapsed, persist = true) {
   state.sidebarCollapsed = collapsed;
   document.body.classList.toggle("sidebar-collapsed", collapsed);
@@ -2169,5 +2187,6 @@ document.addEventListener("keydown", (event) => {
 setSidebarCollapsed(readSidebarPreference(), false);
 setFontScale(readFontScalePreference(), false);
 buildRunsStatusFilters();
+loadProjectIdentity();
 switchView("overview");
 loadItems();
