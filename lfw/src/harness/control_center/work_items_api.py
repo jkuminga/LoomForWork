@@ -56,7 +56,7 @@ class DraftWorkItemRequest(BaseModel):
 
 
 class ReviseWorkItemRequest(BaseModel):
-    """Planning fields that the web console may request to revise."""
+    """Planning fields, including the optional Feature relationship, to revise."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -66,6 +66,7 @@ class ReviseWorkItemRequest(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     priority: WorkItemPriority | None = None
     next_action: str | None = Field(default=None, max_length=2000)
+    feature_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("description", "next_action")
     @classmethod

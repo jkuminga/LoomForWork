@@ -60,6 +60,7 @@ class ConflictError(StateStoreError):
 
 
 _UNSET = object()
+_ASSIGNABLE_FEATURE_STATUSES = frozenset({"planned", "active", "paused", "completed"})
 _SEARCHABLE_WORK_ITEM_STATUSES = frozenset({"backlog", "ready", "blocked"})
 _MEMO_KINDS = frozenset({"general", "decision", "problem", "idea", "question", "reference"})
 _MEMO_STATUSES = frozenset({"open", "closed"})
@@ -150,6 +151,21 @@ def _require_row(
     if row is None:
         raise NotFoundError(f"{label} not found")
     return dict(row)
+
+
+def _require_assignable_feature(
+    database: sqlite3.Connection, feature_id: str
+) -> dict[str, Any]:
+    """Require a Feature that may accept new WorkItems."""
+
+    feature = _require_row(
+        database, "SELECT * FROM features WHERE id = ?", (feature_id,), "Feature"
+    )
+    if feature["status"] not in _ASSIGNABLE_FEATURE_STATUSES:
+        raise ConflictError(
+            f"{feature['status']} Feature cannot accept new WorkItems"
+        )
+    return feature
 
 
 def open_database(
@@ -816,6 +832,8 @@ def create_work_item(
     now = _utc_now()
     cleaned_description = description.strip() if description and description.strip() else None
     with _transaction(database_path) as database:
+        if feature_id is not None:
+            _require_assignable_feature(database, feature_id)
         database.execute(
             """
             INSERT INTO work_items (
@@ -896,6 +914,8 @@ def create_ready_work_item(
     now = _utc_now()
     cleaned_description = description.strip() if description and description.strip() else None
     with _transaction(database_path) as database:
+        if feature_id is not None:
+            _require_assignable_feature(database, feature_id)
         database.execute(
             """
             INSERT INTO work_items (
@@ -968,7 +988,7 @@ def create_draft_work_item(
     cleaned_description = description.strip() if description and description.strip() else None
     with _transaction(database_path) as database:
         if feature_id is not None:
-            _require_row(database, "SELECT id FROM features WHERE id = ?", (feature_id,), "Feature")
+            _require_assignable_feature(database, feature_id)
         database.execute(
             """
             INSERT INTO work_items (
@@ -1024,6 +1044,10 @@ def refine_draft_work_item(
         ).fetchone():
             raise ConflictError("Draft WorkItem already has Acceptance Criteria")
 
+        selected_feature_id = feature_id if feature_id is not None else draft["feature_id"]
+        if selected_feature_id is not None and selected_feature_id != draft["feature_id"]:
+            _require_assignable_feature(database, selected_feature_id)
+
         database.execute(
             """
             UPDATE work_items
@@ -1032,7 +1056,7 @@ def refine_draft_work_item(
             WHERE id = ?
             """,
             (
-                feature_id if feature_id is not None else draft["feature_id"],
+                selected_feature_id,
                 priority,
                 cleaned_next_action,
                 now,
@@ -1083,6 +1107,7 @@ def revise_work_item(
     description: str | None | object = _UNSET,
     priority: str | None = None,
     next_action: str | None | object = _UNSET,
+    feature_id: str | None | object = _UNSET,
     database_path: str | Path = DEFAULT_DATABASE_PATH,
 ) -> dict[str, Any]:
     """Revise allowed WorkItem fields while preserving its execution history."""
@@ -1108,6 +1133,12 @@ def revise_work_item(
             changes["next_action"] = next_action
         if description is not _UNSET:
             changes["description"] = description.strip() or None if isinstance(description, str) else None
+        if feature_id is not _UNSET:
+            if current["status"] not in {"backlog", "ready"}:
+                raise ConflictError("Feature can only be changed on Draft, backlog, or ready WorkItems")
+            if feature_id != current["feature_id"] and feature_id is not None:
+                _require_assignable_feature(database, str(feature_id))
+            changes["feature_id"] = feature_id
         changes = {
             field: value for field, value in changes.items() if current.get(field) != value
         }
@@ -1157,12 +1188,14 @@ def get_work_item_management_capabilities(
 
     status = work_item["status"]
     if work_item["is_draft"]:
-        editable_fields = ["title", "kind", "goal", "description"]
+        editable_fields = ["title", "kind", "goal", "description", "feature_id"]
         allowed_statuses: list[str] = ["cancelled"] if status == "backlog" else []
     elif status in {"backlog", "ready", "blocked"}:
         editable_fields = [
             "title", "kind", "goal", "description", "priority", "next_action"
         ]
+        if status in {"backlog", "ready"}:
+            editable_fields.append("feature_id")
         allowed_statuses = {
             "backlog": ["cancelled"],
             "ready": ["done", "cancelled"],

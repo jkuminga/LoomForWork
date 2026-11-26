@@ -11,9 +11,9 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=overview-dashboard-3" />
+    <link rel="stylesheet" href="/static/styles.css?v=feature-picker-edit-1" />
     <link rel="stylesheet" href="/static/features.css?v=feature-status-pills-5" />
-    <script src="/static/app.js?v=overview-dashboard-6" defer></script>
+    <script src="/static/app.js?v=feature-picker-edit-1" defer></script>
     <script src="/static/features.js?v=feature-status-pills-5" defer></script>
     <script src="/static/memory-graph.js?v=1" defer></script>
     <link rel="stylesheet" href="/static/memory-graph.css?v=1" />
@@ -276,7 +276,7 @@
 
           <div class="field">
             <span>Feature <em>선택</em></span>
-            <div class="draft-feature-control">
+            <div class="feature-picker-control">
               <input id="draft-feature-name" type="text" value="연결하지 않음" aria-label="선택한 Feature" readonly />
               <input id="draft-feature" name="feature_id" type="hidden" value="" />
               <button class="secondary-button" id="open-feature-picker" type="button" aria-haspopup="dialog" aria-controls="feature-picker-modal">Feature 선택</button>
@@ -312,7 +312,7 @@
     <div class="modal-backdrop feature-picker-backdrop hidden" id="feature-picker-modal" role="presentation">
       <section class="modal feature-picker-modal" role="dialog" aria-modal="true" aria-labelledby="feature-picker-title">
         <header class="modal-header">
-          <div><p class="eyebrow">DRAFT WI</p><h2 id="feature-picker-title">상위 Feature 선택</h2></div>
+          <div><p class="eyebrow" id="feature-picker-context">DRAFT WI</p><h2 id="feature-picker-title">상위 Feature 선택</h2></div>
           <button class="icon-button" id="close-feature-picker" type="button" aria-label="Feature 선택 닫기">×</button>
         </header>
         <div class="feature-picker-list" id="feature-picker-list" aria-live="polite"></div>
@@ -339,6 +339,15 @@
           </select></label>
           <label class="field" data-edit-field="goal"><span>Goal <b>필수</b></span><textarea name="goal" rows="3" maxlength="2000"></textarea></label>
           <label class="field" data-edit-field="description"><span>Description <em>선택</em></span><textarea name="description" rows="4" maxlength="5000"></textarea></label>
+          <div class="field" data-edit-field="feature_id">
+            <span>Feature <em>선택</em></span>
+            <div class="feature-picker-control">
+              <input id="edit-feature-name" type="text" value="연결하지 않음" aria-label="선택한 Feature" readonly />
+              <input id="edit-feature" name="feature_id" type="hidden" value="" />
+              <button class="secondary-button" id="open-edit-feature-picker" type="button" aria-haspopup="dialog" aria-controls="feature-picker-modal">Feature 선택</button>
+            </div>
+            <small class="field-hint" id="edit-feature-hint">Draft·backlog·ready WI의 소속 Feature를 바꿀 수 있습니다.</small>
+          </div>
           <label class="field" data-edit-field="priority"><span>Priority</span><select name="priority"><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></label>
           <label class="field" data-edit-field="next_action"><span>Next Action <em>선택</em></span><textarea name="next_action" rows="3" maxlength="2000"></textarea></label>
           <footer class="modal-actions">

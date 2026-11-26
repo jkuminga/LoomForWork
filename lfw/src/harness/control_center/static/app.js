@@ -34,6 +34,7 @@ const FONT_SCALE_LEVELS = [50, 75, 100, 125, 150];
 let draftFeatureLoadVersion = 0;
 let draftFeatures = [];
 let draftFeatureLoadError = "";
+let featurePickerTarget = null; // The shared picker currently edits a new Draft or an existing WorkItem.
 
 const state = {
   items: [],
@@ -1551,55 +1552,76 @@ function clearFormErrors() {
 
 function openModal() {
   clearFormErrors();
-  loadDraftFeatures();
+  loadFeaturePickerOptions();
   elements.modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   document.querySelector("#draft-title").focus();
 }
 
 function closeModal() {
-  closeFeaturePicker(false);
+  if (featurePickerTarget === "draft") closeFeaturePicker(false);
   draftFeatureLoadVersion += 1;
   elements.modal.classList.add("hidden");
   document.body.style.overflow = "";
   document.querySelector("#open-draft-modal").focus();
 }
 
-async function loadDraftFeatures() {
+/** Load selectable Features for the shared Draft and existing-WorkItem picker. */
+async function loadFeaturePickerOptions(currentFeature = null) {
   const version = ++draftFeatureLoadVersion;
   draftFeatures = [];
   draftFeatureLoadError = "";
-  const hint = document.querySelector("#draft-feature-hint");
-  hint.textContent = "Feature 목록을 불러오는 중입니다.";
-  renderDraftFeaturePicker();
+  document.querySelector("#draft-feature-hint").textContent = "Feature 목록을 불러오는 중입니다.";
+  document.querySelector("#edit-feature-hint").textContent = "Feature 목록을 불러오는 중입니다.";
+  renderFeaturePicker();
   try {
     const { features } = await api("/api/features");
     if (version !== draftFeatureLoadVersion) return;
-    draftFeatures = features.sort((a, b) => a.title.localeCompare(b.title, "ko"));
-    hint.textContent = features.length ? "소속 Feature가 있으면 선택하세요." : "현재 등록된 Feature가 없습니다.";
+    const eligible = features.filter((feature) => feature.status !== "cancelled");
+    const editFeatureId = document.querySelector("#edit-feature").value;
+    const selectedCurrentFeature = elements.editModal.classList.contains("hidden")
+      ? null
+      : features.find((feature) => feature.id === editFeatureId) || currentFeature;
+    if (selectedCurrentFeature?.id === editFeatureId) {
+      document.querySelector("#edit-feature-name").value = selectedCurrentFeature.title;
+    }
+    // Preserve a legacy cancelled link in the editor only while it remains selected.
+    if (selectedCurrentFeature?.id === editFeatureId && !eligible.some((feature) => feature.id === editFeatureId)) {
+      eligible.unshift({ ...selectedCurrentFeature, currentOnly: true });
+    }
+    draftFeatures = eligible.sort((a, b) => a.title.localeCompare(b.title, "ko"));
+    document.querySelector("#draft-feature-hint").textContent = draftFeatures.length
+      ? "소속 Feature가 있으면 선택하세요. 취소된 Feature는 새 WI에 연결할 수 없습니다."
+      : "새 WI에 연결할 수 있는 Feature가 없습니다.";
     const selectedId = document.querySelector("#draft-feature").value;
-    if (selectedId && !draftFeatures.some((feature) => feature.id === selectedId)) chooseDraftFeature(null, false);
+    if (selectedId && !draftFeatures.some((feature) => feature.id === selectedId)) chooseFeature(null, false, "draft");
+    document.querySelector("#edit-feature-hint").textContent = draftFeatures.some((feature) => feature.currentOnly)
+      ? "현재 취소된 Feature 연결은 유지하거나 해제할 수 있습니다. 새로 연결할 수는 없습니다."
+      : draftFeatures.length ? "소속 Feature를 선택하거나 연결을 해제할 수 있습니다." : "연결 가능한 Feature가 없습니다.";
   } catch (error) {
     if (version !== draftFeatureLoadVersion) return;
     draftFeatureLoadError = error.message;
-    hint.textContent = "Feature 목록을 불러오지 못했습니다. 연결 없이 Draft를 만들 수 있습니다.";
+    document.querySelector("#draft-feature-hint").textContent = "Feature 목록을 불러오지 못했습니다. 연결 없이 Draft를 만들 수 있습니다.";
+    document.querySelector("#edit-feature-hint").textContent = "Feature 목록을 불러오지 못했습니다. 현재 연결을 유지하거나 해제할 수 있습니다.";
   }
-  renderDraftFeaturePicker();
+  renderFeaturePicker();
 }
 
-function renderDraftFeaturePicker() {
+function renderFeaturePicker() {
   const list = document.querySelector("#feature-picker-list");
+  const target = featurePickerTarget || "draft";
+  const hint = document.querySelector(target === "edit" ? "#edit-feature-hint" : "#draft-feature-hint");
+  const selectedId = document.querySelector(target === "edit" ? "#edit-feature" : "#draft-feature").value;
   if (draftFeatureLoadError) {
     list.innerHTML = `<p class="feature-picker-message" role="alert">${escapeHtml(draftFeatureLoadError)}</p>`;
     return;
   }
   if (!draftFeatures.length) {
-    const message = document.querySelector("#draft-feature-hint").textContent.includes("불러오는 중")
-      ? "Feature를 불러오는 중입니다." : "등록된 Feature가 없습니다.";
+    const message = hint.textContent.includes("불러오는 중")
+      ? "Feature를 불러오는 중입니다." : "연결 가능한 Feature가 없습니다.";
     list.innerHTML = `<p class="feature-picker-message">${message}</p>`;
     return;
   }
-  const selectedId = document.querySelector("#draft-feature").value;
   list.innerHTML = draftFeatures.map((feature) => {
     const progress = feature.progress || {};
     const eligible = Math.max(0, Number(progress.total_work_items || 0) - Number(progress.cancelled_count || 0));
@@ -1609,42 +1631,60 @@ function renderDraftFeaturePicker() {
       const count = Number(progress[`${status}_count`] || 0);
       return count && eligible ? `<span class="feature-segment is-${status}" style="width:${count / eligible * 100}%"></span>` : "";
     }).join("");
-    return `<button class="feature-card feature-picker-card${feature.id === selectedId ? " is-selected" : ""}" type="button" data-picker-feature-id="${escapeHtml(feature.id)}" aria-pressed="${feature.id === selectedId}">
+    const disabled = feature.currentOnly && feature.id !== selectedId;
+    return `<button class="feature-card feature-picker-card${feature.id === selectedId ? " is-selected" : ""}" type="button" data-picker-feature-id="${escapeHtml(feature.id)}" aria-pressed="${feature.id === selectedId}"${disabled ? " disabled" : ""}>
       <span class="feature-card-top"><span><strong>${escapeHtml(feature.title)}</strong><small>${escapeHtml(feature.id)}</small></span></span>
       <span class="feature-picker-goal">${escapeHtml(feature.goal)}</span>
       <span class="feature-card-summary"><span>${eligible ? `<b>${done} / ${eligible}</b> WI 완료` : "WI 없음"}</span><span>${eligible ? `${percent}%` : "진행률 계산 전"}</span></span>
       <span class="feature-progress-bar${eligible ? "" : " is-empty"}">${segments}</span>
-      <span class="feature-card-bottom"><span class="feature-state is-${escapeHtml(feature.status)}">${escapeHtml(feature.status)}</span><span>${escapeHtml(feature.priority)} Priority</span></span>
+      <span class="feature-card-bottom"><span class="feature-state is-${escapeHtml(feature.status)}">${escapeHtml(feature.currentOnly ? `${feature.status} · 현재 연결` : feature.status)}</span><span>${escapeHtml(feature.priority)} Priority</span></span>
     </button>`;
   }).join("");
 }
 
-function openFeaturePicker() {
+function featurePickerHost(target) {
+  return target === "edit" ? elements.editModal : elements.modal;
+}
+
+function openFeaturePicker(target = "draft") {
+  featurePickerTarget = target;
   const picker = document.querySelector("#feature-picker-modal");
-  renderDraftFeaturePicker();
-  elements.modal.inert = true;
-  elements.modal.setAttribute("aria-hidden", "true");
+  const host = featurePickerHost(target);
+  document.querySelector("#feature-picker-context").textContent = target === "edit" ? "WORK ITEM" : "DRAFT WI";
+  renderFeaturePicker();
+  host.inert = true;
+  host.setAttribute("aria-hidden", "true");
   picker.classList.remove("hidden");
   picker.querySelector("[data-picker-feature-id], #clear-feature-picker, #close-feature-picker").focus();
 }
 
 function closeFeaturePicker(restoreFocus = true) {
+  const target = featurePickerTarget || "draft";
+  const host = featurePickerHost(target);
   document.querySelector("#feature-picker-modal").classList.add("hidden");
-  elements.modal.inert = false;
-  elements.modal.removeAttribute("aria-hidden");
-  if (restoreFocus && !elements.modal.classList.contains("hidden")) {
-    document.querySelector("#open-feature-picker").focus();
+  host.inert = false;
+  host.removeAttribute("aria-hidden");
+  featurePickerTarget = null;
+  if (restoreFocus && !host.classList.contains("hidden")) {
+    document.querySelector(target === "edit" ? "#open-edit-feature-picker" : "#open-feature-picker").focus();
   }
 }
 
-function chooseDraftFeature(feature, restoreFocus = true) {
-  document.querySelector("#draft-feature").value = feature?.id || "";
-  document.querySelector("#draft-feature-name").value = feature?.title || "연결하지 않음";
-  renderDraftFeaturePicker();
+function chooseFeature(feature, restoreFocus = true, explicitTarget = null) {
+  const target = explicitTarget || featurePickerTarget || "draft";
+  const input = document.querySelector(target === "edit" ? "#edit-feature" : "#draft-feature");
+  const name = document.querySelector(target === "edit" ? "#edit-feature-name" : "#draft-feature-name");
+  if (feature?.currentOnly && feature.id !== input.value) return;
+  input.value = feature?.id || "";
+  name.value = feature?.title || "연결하지 않음";
+  if (target === "edit" && !feature?.currentOnly) {
+    draftFeatures = draftFeatures.filter((item) => !item.currentOnly);
+  }
+  renderFeaturePicker();
   if (restoreFocus) closeFeaturePicker();
 }
 
-function openEditModal() {
+async function openEditModal() {
   const context = state.selectedContext;
   if (!context?.capabilities?.can_edit) return;
   const item = context.work_item;
@@ -1656,13 +1696,34 @@ function openEditModal() {
     const input = elements.editForm.elements.namedItem(name);
     if (input) input.value = item[name] ?? "";
   }
+  const featureInput = elements.editForm.elements.namedItem("feature_id");
+  const featureName = document.querySelector("#edit-feature-name");
+  const canChangeFeature = editable.has("feature_id") && featureInput;
+  if (canChangeFeature) {
+    featureInput.value = item.feature_id || "";
+    featureName.value = context.feature?.title || (item.feature_id ? "현재 연결된 Feature" : "연결하지 않음");
+    document.querySelector("#edit-feature-hint").textContent = "Feature 목록을 불러오는 중입니다.";
+  }
   elements.editFormError.classList.add("hidden");
   elements.editModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  elements.editForm.elements.namedItem("title")?.focus();
+  if (canChangeFeature) {
+    const pickerButton = document.querySelector("#open-edit-feature-picker");
+    pickerButton.disabled = true;
+    try {
+      await loadFeaturePickerOptions(context.feature || null);
+    } finally {
+      pickerButton.disabled = false;
+    }
+  }
+  if (!elements.editModal.classList.contains("hidden")) {
+    elements.editForm.elements.namedItem("title")?.focus();
+  }
 }
 
 function closeEditModal() {
+  if (featurePickerTarget === "edit") closeFeaturePicker(false);
+  draftFeatureLoadVersion += 1;
   elements.editModal.classList.add("hidden");
   document.body.style.overflow = "";
 }
@@ -1980,14 +2041,15 @@ document.querySelector("#open-draft-modal").addEventListener("click", () => {
 });
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
-document.querySelector("#open-feature-picker").addEventListener("click", openFeaturePicker);
+document.querySelector("#open-feature-picker").addEventListener("click", () => openFeaturePicker("draft"));
+document.querySelector("#open-edit-feature-picker").addEventListener("click", () => openFeaturePicker("edit"));
 document.querySelector("#close-feature-picker").addEventListener("click", () => closeFeaturePicker());
-document.querySelector("#clear-feature-picker").addEventListener("click", () => chooseDraftFeature(null));
+document.querySelector("#clear-feature-picker").addEventListener("click", () => chooseFeature(null));
 document.querySelector("#feature-picker-list").addEventListener("click", (event) => {
   const card = event.target.closest("[data-picker-feature-id]");
   if (!card) return;
   const feature = draftFeatures.find((item) => item.id === card.dataset.pickerFeatureId);
-  if (feature) chooseDraftFeature(feature);
+  if (feature) chooseFeature(feature);
 });
 document.querySelector("#refresh-items").addEventListener("click", () => loadItems());
 elements.nextActionsTrigger.addEventListener("click", () => setNextActionsOpen(!state.nextActionsOpen));
