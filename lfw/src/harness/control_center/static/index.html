@@ -12,9 +12,9 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
     <link rel="stylesheet" href="/static/styles.css?v=feature-picker-edit-1" />
-    <link rel="stylesheet" href="/static/features.css?v=feature-status-pills-5" />
-    <script src="/static/app.js?v=feature-picker-edit-1" defer></script>
-    <script src="/static/features.js?v=feature-status-pills-5" defer></script>
+    <link rel="stylesheet" href="/static/features.css?v=feature-linked-draft-1" />
+    <script src="/static/app.js?v=feature-linked-draft-1" defer></script>
+    <script src="/static/features.js?v=feature-linked-draft-1" defer></script>
     <script src="/static/memory-graph.js?v=1" defer></script>
     <link rel="stylesheet" href="/static/memory-graph.css?v=1" />
   </head>
@@ -281,7 +281,7 @@
           </label>
 
           <div class="field">
-            <span>Feature <em>선택</em></span>
+            <span id="draft-feature-label">Feature <em>선택</em></span>
             <div class="feature-picker-control">
               <input id="draft-feature-name" type="text" value="연결하지 않음" aria-label="선택한 Feature" readonly />
               <input id="draft-feature" name="feature_id" type="hidden" value="" />

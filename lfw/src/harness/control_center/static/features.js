@@ -78,7 +78,7 @@
     scrim.classList.add("hidden");
   }
 
-  async function openDetail(id) {
+  async function openDetail(id, focusSelector = ".feature-detail-close") {
     const version = ++state.detailVersion;
     state.selectedId = id;
     scrim.classList.remove("hidden");
@@ -92,16 +92,28 @@
       const { progress, eligible, done, total, cancelled } = counts(feature);
       const metric = eligible ? `${Math.round(done / eligible * 100)}%` : "—";
       const breakdown = eligible ? `<div class="feature-breakdown">${order.filter((key) => Number(progress[`${key}_count`] || 0) > 0).map((key) => `<span><i class="is-${key}"></i>${labels[key]} <b>${Number(progress[`${key}_count`])}</b></span>`).join("")}${cancelled ? `<span>Cancelled <b>${cancelled}</b> (계산 제외)</span>` : ""}</div>` : `<p class="feature-progress-hint">${total ? "모든 WI가 취소되어 진행률 계산 대상이 없습니다." : "WI를 연결하면 진행률이 표시됩니다."} Feature 상태는 별도로 관리됩니다.</p>`;
+      const addWorkItemButton = feature.status === "cancelled"
+        ? `<button class="secondary-button feature-add-work-item" type="button" disabled title="취소된 Feature에는 새 Work Item을 연결할 수 없습니다.">Draft WI 추가 불가</button>`
+        : `<button class="secondary-button feature-add-work-item" type="button" data-feature-add-work-item data-feature-id="${escape(feature.id)}" data-feature-title="${escape(feature.title)}" aria-label="${escape(feature.title)}에 Draft WI 추가">＋ Draft WI 추가</button>`;
       const workItems = items.length ? items.map((item) => {
         const label = item.is_draft ? "Draft" : labels[item.status] || item.status;
         return `<button class="feature-wi-row" type="button" data-feature-work-item="${escape(item.id)}" aria-label="${escape(item.title)} WorkItem 상세 보기"><span><strong>${escape(item.title)}</strong><small>${escape(item.id)}</small></span><span class="feature-wi-status is-${escape(item.status)}">${escape(label)}</span></button>`;
       }).join("") : '<div class="feature-no-wi"><strong>아직 연결된 WI가 없습니다</strong><p>작업 항목을 연결하면 이곳에 목록과 진행 상황이 표시됩니다.</p></div>';
       panel.innerHTML = `<div class="feature-detail-head"><div class="feature-detail-top"><span>${escape(feature.id)}</span><button class="feature-detail-close" type="button" aria-label="Feature 상세 닫기">×</button></div><h2>${escape(feature.title)}</h2><p>${escape(feature.goal)}</p></div>
         <div class="feature-detail-body"><section class="feature-info-card"><h3>Feature 정보</h3><dl class="feature-properties"><dt>상태</dt><dd><select class="feature-status-select" aria-label="Feature 상태 변경" data-feature-id="${escape(feature.id)}" data-current-status="${escape(feature.status)}">${featureStatuses.map((status) => `<option value="${status}"${status === feature.status ? " selected" : ""}>${labels[status]}</option>`).join("")}</select></dd><dt>우선순위</dt><dd>${escape(feature.priority)}</dd></dl><p class="feature-status-error hidden" role="alert"></p></section>
-        <section class="feature-work-items-section"><h3>Work Items <small>${items.length}</small></h3><div class="feature-metric"><strong>${metric}</strong><span>${eligible ? `${done} / ${eligible} WI 완료` : "진행률 계산 전"}</span></div>${bar(feature)}${breakdown}<h4>연결된 목록</h4>${workItems}</section></div>`;
-      panel.querySelector(".feature-detail-close").focus();
+        <section class="feature-work-items-section"><h3>Work Items <small>${items.length}</small></h3><div class="feature-metric"><strong>${metric}</strong><span>${eligible ? `${done} / ${eligible} WI 완료` : "진행률 계산 전"}</span></div>${bar(feature)}${breakdown}<h4>연결된 목록</h4>${workItems}${addWorkItemButton}</section></div>`;
+      const focusTarget = panel.querySelector(focusSelector);
+      (focusTarget?.disabled ? panel.querySelector(".feature-detail-close") : focusTarget)?.focus();
     } catch (error) {
       if (version === state.detailVersion) panel.innerHTML = `<div class="feature-detail-loading" role="alert">${escape(error.message)}<button class="feature-detail-close" type="button" aria-label="닫기">×</button></div>`;
+    }
+  }
+
+  /** Refresh a Feature card and its open detail panel after a linked Draft is created. */
+  async function refreshDetail(id, focusSelector = ".feature-add-work-item") {
+    await load();
+    if (state.selectedId === id && panel.classList.contains("is-open")) {
+      await openDetail(id, focusSelector);
     }
   }
 
@@ -125,6 +137,13 @@
   });
   panel.addEventListener("click", (event) => {
     if (event.target.closest(".feature-detail-close")) return closeDetail();
+    const addWorkItemButton = event.target.closest("[data-feature-add-work-item]");
+    if (addWorkItemButton) {
+      document.dispatchEvent(new CustomEvent("feature:create-draft", {
+        detail: { featureId: addWorkItemButton.dataset.featureId, featureTitle: addWorkItemButton.dataset.featureTitle },
+      }));
+      return;
+    }
     const row = event.target.closest("[data-feature-work-item]");
     if (!row) return;
     const workItemId = row.dataset.featureWorkItem;
@@ -197,5 +216,5 @@
     } finally { submit.disabled = false; }
   });
 
-  window.featuresPage = { load, closeDetail, openCreate };
+  window.featuresPage = { load, closeDetail, openCreate, refreshDetail };
 })();

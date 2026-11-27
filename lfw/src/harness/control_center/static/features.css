@@ -91,6 +91,9 @@ body[data-current-view="features"] .page-heading-actions #refresh-features { dis
 .feature-wi-row:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
 .feature-wi-row strong { display: block; font-size: calc(13px * var(--font-scale)); font-weight: 650; line-height: 1.4; }
 .feature-wi-row small { display: block; margin-top: 4px; color: var(--ink-soft); font-size: calc(12px * var(--font-scale)); }
+.feature-add-work-item { width: 100%; margin-top: 12px; }
+.feature-add-work-item:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+.feature-add-work-item:disabled { cursor: not-allowed; opacity: .65; }
 .feature-wi-status { flex: 0 0 auto; color: var(--ink-soft); font-size: calc(12px * var(--font-scale)); font-weight: 700; white-space: nowrap; }.feature-wi-status.is-done { color: var(--feature-done); }.feature-wi-status.is-in_progress { color: var(--amber); }
 .feature-no-wi { padding: 24px; border: 1px dashed var(--line-strong); border-radius: 9px; background: var(--paper-muted); color: var(--ink-soft); text-align: center; }
 .feature-no-wi strong { display: block; color: var(--forest); font-size: calc(13px * var(--font-scale)); }.feature-no-wi p { margin: 6px 0 0; font-size: calc(12px * var(--font-scale)); }

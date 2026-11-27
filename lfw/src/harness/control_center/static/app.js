@@ -35,6 +35,7 @@ let draftFeatureLoadVersion = 0;
 let draftFeatures = [];
 let draftFeatureLoadError = "";
 let featurePickerTarget = null; // The shared picker currently edits a new Draft or an existing WorkItem.
+let draftReturnFeatureId = null; // Feature ID whose detail panel should remain open after Draft creation.
 
 const state = {
   items: [],
@@ -1568,20 +1569,47 @@ function clearFormErrors() {
   document.querySelectorAll(".field-error").forEach((node) => { node.textContent = ""; });
 }
 
-function openModal() {
+/** Prefill the Draft's feature_id field and lock it when creation starts in a Feature panel. */
+function setDraftFeatureContext(feature = null) {
+  const featureInput = document.querySelector("#draft-feature");
+  const featureName = document.querySelector("#draft-feature-name");
+  const featureLabel = document.querySelector("#draft-feature-label");
+  const featurePickerButton = document.querySelector("#open-feature-picker");
+  const featureHint = document.querySelector("#draft-feature-hint");
+  const isFixed = Boolean(feature?.id);
+  featureInput.value = isFixed ? feature.id : "";
+  featureName.value = isFixed ? feature.title : "연결하지 않음";
+  featureLabel.innerHTML = isFixed ? "Feature 연결" : "Feature <em>선택</em>";
+  featurePickerButton.hidden = isFixed;
+  featureHint.textContent = isFixed ? "이 Draft는 현재 Feature에 연결됩니다." : "소속 Feature가 있으면 선택하세요.";
+}
+
+function openModal(feature = null) {
+  if (feature) elements.form.reset();
   clearFormErrors();
-  loadFeaturePickerOptions();
+  draftReturnFeatureId = feature?.id || null;
+  if (feature) setDraftFeatureContext(feature);
+  if (!feature) loadFeaturePickerOptions();
   elements.modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   document.querySelector("#draft-title").focus();
 }
 
 function closeModal() {
+  const returnFeatureId = draftReturnFeatureId;
   if (featurePickerTarget === "draft") closeFeaturePicker(false);
   draftFeatureLoadVersion += 1;
   elements.modal.classList.add("hidden");
   document.body.style.overflow = "";
-  document.querySelector("#open-draft-modal").focus();
+  draftReturnFeatureId = null;
+  if (returnFeatureId) {
+    elements.form.reset();
+    setDraftFeatureContext(null);
+  }
+  const returnButton = returnFeatureId
+    ? [...document.querySelectorAll("[data-feature-add-work-item]")].find((button) => button.dataset.featureId === returnFeatureId)
+    : null;
+  (returnButton || document.querySelector("#open-draft-modal")).focus();
 }
 
 /** Load selectable Features for the shared Draft and existing-WorkItem picker. */
@@ -2041,9 +2069,11 @@ async function submitDraft(event) {
   elements.submitButton.querySelector(".button-spinner").classList.remove("hidden");
   try {
     const response = await api("/api/draft-work-items", { method: "POST", body: JSON.stringify(payload) });
+    const returnFeatureId = draftReturnFeatureId;
     elements.form.reset();
     closeModal();
-    await loadItems({ selectId: response.work_item.id });
+    if (returnFeatureId) await window.featuresPage.refreshDetail(returnFeatureId);
+    else await loadItems({ selectId: response.work_item.id });
   } catch (error) {
     showFormError(error);
   } finally {
@@ -2056,6 +2086,10 @@ async function submitDraft(event) {
 document.querySelector("#open-draft-modal").addEventListener("click", () => {
   if (state.currentView === "features") window.featuresPage.openCreate();
   else openModal();
+});
+// feature:create-draft opens the shared Draft form with a fixed Feature association.
+document.addEventListener("feature:create-draft", (event) => {
+  openModal({ id: event.detail.featureId, title: event.detail.featureTitle });
 });
 document.querySelector("#close-draft-modal").addEventListener("click", closeModal);
 document.querySelector("#cancel-draft").addEventListener("click", closeModal);
@@ -2179,7 +2213,10 @@ document.addEventListener("keydown", (event) => {
   else if (!document.querySelector("#feature-picker-modal").classList.contains("hidden")) closeFeaturePicker();
   else if (!elements.deleteModal.classList.contains("hidden")) closeDeleteModal();
   else if (!elements.editModal.classList.contains("hidden")) closeEditModal();
-  else if (!elements.modal.classList.contains("hidden")) closeModal();
+  else if (!elements.modal.classList.contains("hidden")) {
+    event.stopImmediatePropagation();
+    closeModal();
+  }
   else if (!elements.memoModal.classList.contains("hidden")) requestCloseMemoModal();
   else if (state.nextActionsOpen) setNextActionsOpen(false);
 });
